@@ -19,7 +19,7 @@ const bcryptCost = bcrypt.DefaultCost
 
 // Handlers holds dependencies for auth HTTP handlers.
 type Handlers struct {
-	UserRepo *repositories.UserRepository
+	UserRepo  *repositories.UserRepository
 	JWTSecret string
 }
 
