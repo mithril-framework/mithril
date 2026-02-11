@@ -15,6 +15,7 @@ import (
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
@@ -66,6 +67,13 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n",
 	}))
 	app.Use(recover.New())
+	if isCompressionEnabled() {
+		app.Use(func(c *fiber.Ctx) error {
+			c.Request().Header.Set("Accept-Encoding", "gzip")
+			return c.Next()
+		})
+		app.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
+	}
 	app.Use(healthcheck.New())
 	app.Use(swagger.New(swagger.Config{
 		BasePath: "/",
@@ -133,6 +141,12 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// isCompressionEnabled returns true when ENABLE_COMPRESSION is true, 1, or yes (case-insensitive).
+func isCompressionEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_COMPRESSION")))
+	return v == "true" || v == "1" || v == "yes"
 }
 
 // loadEnvFile reads KEY=VALUE lines from filename and sets them in the environment.
