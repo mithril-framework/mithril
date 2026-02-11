@@ -15,9 +15,9 @@ run: ## Run the application in development mode
 	@echo "Starting Mithril application..."
 	go run main.go
 
-run-air: ## Run with live reload (requires air)
+run-air: ## Run with live reload (uses air via go run)
 	@echo "Starting with live reload..."
-	air -c .air.toml
+	go run github.com/air-verse/air@latest -c .air.toml
 
 build: ## Build the application
 	@echo "Building application..."
