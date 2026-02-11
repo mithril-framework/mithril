@@ -11,6 +11,7 @@ import (
 	"mithril-rev/database/repositories"
 	"mithril-rev/internal/auth"
 	"mithril-rev/internal/db"
+	"mithril-rev/internal/vendor"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
@@ -147,6 +148,9 @@ func main() {
 	authGroup.Get("/me", authHandlers.Me)
 	authGroup.Post("/enable-2fa", authHandlers.Enable2FA)
 	authGroup.Post("/verify-2fa", authHandlers.Verify2FA)
+
+	vendorGroup := app.Group("/vendor", jwtware.New(jwtConfig))
+	vendorGroup.Get("/dashboard", vendor.Dashboard(dbPool))
 
 	port := getEnv("PORT", "4000")
 	log.Printf("Starting server on port %s", port)
