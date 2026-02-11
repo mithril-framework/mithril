@@ -14,9 +14,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const seedSentinelFile = ".seed-allowed"
+
 func main() {
 	if os.Getenv("ALLOW_SEED") != "1" {
 		log.Fatal("Seed is manual-only. Run: ALLOW_SEED=1 make seed")
+	}
+	if _, err := os.Stat(seedSentinelFile); err != nil {
+		if os.IsNotExist(err) {
+			log.Fatal("Seed is manual-only. Run: make seed")
+		}
+		log.Fatalf("seed sentinel check: %v", err)
 	}
 	ctx := context.Background()
 	dsn := db.DSNFromEnv()

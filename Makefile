@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build test clean migrate-up migrate-down migrate-status seed install-tools
+.PHONY: help install run run-air build test clean migrate-up migrate-down migrate-status migrate-reset seed install-tools
 
 # Default target
 help: ## Show this help message
@@ -60,10 +60,21 @@ migrate-status: ## Show migration status
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" status
 
+# Use after manually dropping tables (e.g. users). Clears Goose version table so migrate-up re-runs all migrations.
+migrate-reset: ## Clear migration history and re-run all migrations (requires psql)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
+	echo "Clearing goose_db_version and re-running migrations..."; \
+	psql "$$DATABASE_URL" -c "DELETE FROM goose_db_version;" && \
+	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
+
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
 	@[ -f .env ] && set -a && . ./.env && set +a; \
-	ALLOW_SEED=1 go run ./cmd/seed
+	touch .seed-allowed && ALLOW_SEED=1 go run ./cmd/seed; rm -f .seed-allowed
 
 kill: ## Kill app on port 4000 and Air (parent of that process)
 	@pids=$$(lsof -t -i:4000); \

@@ -1,6 +1,7 @@
 tmp/
 bin/
 # .env
+.seed-allowed
 *.exe
 coverage.out
 coverage.html

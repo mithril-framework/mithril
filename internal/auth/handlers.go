@@ -3,6 +3,9 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"strings"
 	"time"
 
 	"mithril-rev/database/models"
@@ -30,6 +33,15 @@ func NewHandlers(userRepo *repositories.UserRepository, jwtSecret string) *Handl
 
 // Register handles POST /auth/register.
 func (h *Handlers) Register(c *fiber.Ctx) error {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_REGISTER"))) {
+	case "1", "true":
+		// allow registration
+	default:
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error":   "registration_disabled",
+			"message": "Registration is disabled. Set ENABLE_REGISTER=1 to enable.",
+		})
+	}
 	if h.UserRepo == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error": "service_unavailable", "message": "database not configured",
@@ -65,6 +77,7 @@ func (h *Handlers) Register(c *fiber.Ctx) error {
 		}
 		return c.Status(500).JSON(fiber.Map{"error": "internal_error", "message": "registration failed"})
 	}
+	log.Printf("user registered: email=%s id=%s", u.Email, u.ID)
 	return c.Status(201).JSON(fiber.Map{
 		"success": true,
 		"message": "User registered successfully. Please check your email for verification.",
