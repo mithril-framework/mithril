@@ -1,0 +1,119 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Mithril Rev API",
+    "version": "1.0.0",
+    "description": "Minimal API documentation for the Mithril Rev service."
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Root welcome",
+        "description": "Returns basic API information.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RootResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns overall service health status.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/livez": {
+      "get": {
+        "summary": "Liveness probe",
+        "description": "Liveness probe handled by Fiber healthcheck middleware.",
+        "responses": {
+          "200": {
+            "description": "Application is alive"
+          },
+          "503": {
+            "description": "Application is not alive"
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Readiness probe",
+        "description": "Readiness probe handled by Fiber healthcheck middleware.",
+        "responses": {
+          "200": {
+            "description": "Application is ready to serve traffic"
+          },
+          "503": {
+            "description": "Application is not ready to serve traffic"
+          }
+        }
+      }
+    },
+    "/monitor": {
+      "get": {
+        "summary": "Metrics dashboard",
+        "description": "HTML dashboard with process and system metrics, provided by Fiber monitor middleware.",
+        "responses": {
+          "200": {
+            "description": "Metrics dashboard HTML",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RootResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Mithril Rev API"
+          },
+          "version": {
+            "type": "string",
+            "example": "1.0.0"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "ok"
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -35,12 +36,19 @@ func main() {
 	}))
 	app.Use(recover.New())
 	app.Use(healthcheck.New())
+	app.Use(swagger.New(swagger.Config{
+		BasePath: "/",
+		FilePath: "./docs/swagger.json",
+		Path:     "docs",
+		Title:    "Mithril Rev API",
+	}))
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message": "Mithril Rev API",
 			"version": "1.0.0",
 		})
+
 	})
 
 	app.Get("/health", func(c *fiber.Ctx) error {
