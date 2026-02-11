@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"mithril-rev/internal/auth"
@@ -25,6 +27,8 @@ var dbPool *pgxpool.Pool
 var userRepo *repositories.UserRepository
 
 func main() {
+	loadEnvFile(".env")
+
 	ctx := context.Background()
 	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {
 		dsn := db.DSNFromEnv()
@@ -128,4 +132,35 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// loadEnvFile reads KEY=VALUE lines from filename and sets them in the environment.
+// Only sets a variable if it is not already set. Skips empty lines and # comments.
+func loadEnvFile(filename string) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return // .env optional
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, "=")
+		if idx <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:idx])
+		if key == "" {
+			continue
+		}
+		if os.Getenv(key) != "" {
+			continue // do not override existing env
+		}
+		value := strings.TrimSpace(line[idx+1:])
+		value = strings.Trim(value, `"`) // optional: remove surrounding quotes
+		os.Setenv(key, value)
+	}
 }
