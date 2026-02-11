@@ -27,6 +27,7 @@ var dbPool *pgxpool.Pool
 var userRepo *repositories.UserRepository
 
 func main() {
+	// Seed is manual-only via "make seed". Do not run seed from this process or on reload.
 	loadEnvFile(".env")
 
 	ctx := context.Background()

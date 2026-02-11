@@ -19,15 +19,19 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// Create inserts a user and sets ID, CreatedAt, UpdatedAt.
+// Create inserts a user and sets ID (if not set), CreatedAt, UpdatedAt.
+// ID is generated in the app so new rows never have NULL id regardless of DB default.
 func (r *UserRepository) Create(ctx context.Context, u *models.User) error {
+	if u.ID == uuid.Nil {
+		u.ID = uuid.New()
+	}
 	query := `
-		INSERT INTO users (email, password_hash, first_name, last_name, is_active)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at
+		INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING created_at, updated_at
 	`
-	return r.db.QueryRow(ctx, query, u.Email, u.PasswordHash, u.FirstName, u.LastName, u.IsActive).
-		Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt)
+	return r.db.QueryRow(ctx, query, u.ID, u.Email, u.PasswordHash, u.FirstName, u.LastName, u.IsActive).
+		Scan(&u.CreatedAt, &u.UpdatedAt)
 }
 
 // GetByID returns a user by id.

@@ -10,8 +10,8 @@ CREATE TABLE users_new (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO users_new (email, password_hash, first_name, last_name, is_active, created_at, updated_at)
-SELECT email, password_hash, first_name, last_name, is_active, created_at, updated_at FROM users;
+INSERT INTO users_new (id, email, password_hash, first_name, last_name, is_active, created_at, updated_at)
+SELECT gen_random_uuid(), email, password_hash, first_name, last_name, is_active, created_at, updated_at FROM users;
 
 DROP TABLE users;
 ALTER TABLE users_new RENAME TO users;

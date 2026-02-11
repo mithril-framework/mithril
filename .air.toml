@@ -18,6 +18,7 @@ tmp_dir = "tmp"
   log = "build-errors.log"
   poll = false
   poll_interval = 0
+  # Do not run seed here; seed is manual-only via "make seed".
   post_cmd = []
   pre_cmd = []
   rerun = false

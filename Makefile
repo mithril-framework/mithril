@@ -60,9 +60,10 @@ migrate-status: ## Show migration status
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" status
 
+# Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
 	@[ -f .env ] && set -a && . ./.env && set +a; \
-	go run ./cmd/seed
+	ALLOW_SEED=1 go run ./cmd/seed
 
 kill: ## Kill app on port 4000 and Air (parent of that process)
 	@pids=$$(lsof -t -i:4000); \

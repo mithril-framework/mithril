@@ -15,6 +15,9 @@ import (
 )
 
 func main() {
+	if os.Getenv("ALLOW_SEED") != "1" {
+		log.Fatal("Seed is manual-only. Run: ALLOW_SEED=1 make seed")
+	}
 	ctx := context.Background()
 	dsn := db.DSNFromEnv()
 	if os.Getenv("DATABASE_URL") == "" && os.Getenv("DB_HOST") == "" {
