@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"time"
+	// "time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/mithril-framework/mithril/pkg/auth"

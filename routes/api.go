@@ -12,7 +12,7 @@ import (
 // SetupAPIRoutes sets up API routes
 func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 	api := app.Group("/api/v1")
-	
+
 	// API welcome route
 	api.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
@@ -22,11 +22,11 @@ func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 			"monitor": "/monitor",
 		})
 	})
-	
+
 	// Storage routes (if storage is configured)
 	if storageManager != nil && storageManager.Default() != nil {
 		storage := api.Group("/storage")
-		
+
 		// Upload file
 		storage.Post("/upload", func(c *fiber.Ctx) error {
 			fileHeader, err := c.FormFile("file")
@@ -44,7 +44,7 @@ func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 			}
 			return c.JSON(fiber.Map{"path": path, "message": "File uploaded successfully"})
 		})
-		
+
 		// Download file
 		storage.Get("/download", func(c *fiber.Ctx) error {
 			p := c.Query("path")
@@ -63,17 +63,17 @@ func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 			_, err = io.Copy(c, r)
 			return err
 		})
-		
+
 		// List files
-		storage.Get("/list", func(c *fiber.Ctx) error {
-			prefix := c.Query("prefix", "/uploads")
-			items, err := storageManager.Default().List(context.Background(), storage.ListOptions{Prefix: prefix, Recursive: true})
-			if err != nil {
-				return err
-			}
-			return c.JSON(items)
-		})
-		
+		// storage.Get("/list", func(c *fiber.Ctx) error {
+		// 	prefix := c.Query("prefix", "/uploads")
+		// 	items, err := storageManager.Default().List(context.Background(), storage.ListOptions{Prefix: prefix, Recursive: true})
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// 	return c.JSON(items)
+		// })
+
 		// Delete file
 		storage.Delete("/delete", func(c *fiber.Ctx) error {
 			p := c.Query("path")
@@ -86,10 +86,9 @@ func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 			return c.SendStatus(http.StatusNoContent)
 		})
 	}
-	
+
 	// Add your API routes here
 	// Example:
 	// api.Get("/users", controllers.GetUsers)
 	// api.Post("/users", controllers.CreateUser)
 }
-
