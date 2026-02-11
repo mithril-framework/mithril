@@ -87,9 +87,154 @@
           }
         }
       }
+    },
+    "/auth/register": {
+      "post": {
+        "summary": "Register",
+        "description": "Register a new user. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation error" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login",
+        "description": "Authenticate; demo user@example.com / password.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Invalid credentials" } }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "summary": "Forgot password",
+        "description": "Request password reset. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "email": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "summary": "Reset password",
+        "description": "Reset password with token. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "token": { "type": "string" }, "new_password": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/send-otp": {
+      "post": {
+        "summary": "Send OTP",
+        "description": "Send OTP. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "phone": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/verify-otp": {
+      "post": {
+        "summary": "Verify OTP",
+        "description": "Verify OTP. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "phone": { "type": "string" }, "code": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "description": "Clear auth state. Requires Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Refresh tokens",
+        "description": "Issue new access and refresh tokens.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "refresh_token": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Invalid refresh token" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Current user",
+        "description": "Return authenticated user. Requires Bearer token.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/auth/enable-2fa": {
+      "post": {
+        "summary": "Enable 2FA",
+        "description": "Start 2FA setup. Stub.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/auth/verify-2fa": {
+      "post": {
+        "summary": "Verify 2FA",
+        "description": "Verify 2FA code. Stub.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": { "code": { "type": "string" } } }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
     "schemas": {
       "RootResponse": {
         "type": "object",
@@ -110,6 +255,51 @@
           "status": {
             "type": "string",
             "example": "ok"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "password": { "type": "string" },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "password": { "type": "string" },
+          "remember": { "type": "boolean" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "user": { "type": "object" },
+              "tokens": { "type": "object" }
+            }
+          }
+        }
+      },
+      "MeResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "email": { "type": "string" },
+              "roles": { "type": "array", "items": { "type": "string" } }
+            }
           }
         }
       }

@@ -1,6 +1,6 @@
 tmp/
 bin/
-.env
+# .env
 *.exe
 coverage.out
 coverage.html
