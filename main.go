@@ -149,7 +149,7 @@ func main() {
 	authGroup.Post("/enable-2fa", authHandlers.Enable2FA)
 	authGroup.Post("/verify-2fa", authHandlers.Verify2FA)
 
-	vendorGroup := app.Group("/vendor", jwtware.New(jwtConfig))
+	vendorGroup := app.Group("/vendor")
 	vendorGroup.Get("/dashboard", vendor.Dashboard(dbPool))
 
 	port := getEnv("PORT", "4000")

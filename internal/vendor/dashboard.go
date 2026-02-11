@@ -2,6 +2,7 @@ package vendor
 
 import (
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -134,12 +135,12 @@ ORDER BY vendor_id, campaign_id
 		vendorData := make(map[int64]*vendorEntry)
 		for rows.Next() {
 			var (
-				vendorID, campaignID                                                                  int64
-				vendorName, campaignName, verticalName                                                string
-				generated, accepted, duplicated, errored, appointments, sales, returned               int
-				answeringMachineCount, issueCount, hungUpCount, pitchMissCount                        int
-				revenue, cost, profit, returnedAmount, totalSaleAmount, totalNetSaleAmount            float64
-				salesLeadIDsStr, returnedLeadIDsStr, appointmentsLeadIDsStr                           string
+				vendorID, campaignID                                                       int64
+				vendorName, campaignName, verticalName                                     string
+				generated, accepted, duplicated, errored, appointments, sales, returned    int
+				answeringMachineCount, issueCount, hungUpCount, pitchMissCount             int
+				revenue, cost, profit, returnedAmount, totalSaleAmount, totalNetSaleAmount float64
+				salesLeadIDsStr, returnedLeadIDsStr, appointmentsLeadIDsStr                *string
 			)
 			err := rows.Scan(
 				&vendorID, &vendorName, &campaignID, &campaignName, &verticalName,
@@ -157,9 +158,9 @@ ORDER BY vendor_id, campaign_id
 				})
 			}
 
-			salesLeadIDs := splitNonEmpty(salesLeadIDsStr, ",")
-			returnedLeadIDs := splitNonEmpty(returnedLeadIDsStr, ",")
-			appointmentsLeadIDs := splitNonEmpty(appointmentsLeadIDsStr, ",")
+			salesLeadIDs := splitNonEmpty(ptrStr(salesLeadIDsStr), ",")
+			returnedLeadIDs := splitNonEmpty(ptrStr(returnedLeadIDsStr), ",")
+			appointmentsLeadIDs := splitNonEmpty(ptrStr(appointmentsLeadIDsStr), ",")
 
 			if _, ok := vendorData[vendorID]; !ok {
 				empty := emptyStats()
@@ -173,7 +174,7 @@ ORDER BY vendor_id, campaign_id
 			ent := vendorData[vendorID]
 
 			stats := statsMap{
-				Generated:              generated,
+				Generated:             generated,
 				Accepted:              accepted,
 				Duplicated:            duplicated,
 				Errored:               errored,
@@ -184,22 +185,22 @@ ORDER BY vendor_id, campaign_id
 				Sales:                 sales,
 				Returned:              returned,
 				ReturnedAmount:        returnedAmount,
-				TotalSaleAmount:        totalSaleAmount,
-				TotalNetSaleAmount:     totalNetSaleAmount,
+				TotalSaleAmount:       totalSaleAmount,
+				TotalNetSaleAmount:    totalNetSaleAmount,
 				AnsweringMachineCount: answeringMachineCount,
 				IssueCount:            issueCount,
 				HungUpCount:           hungUpCount,
-				PitchMissCount:         pitchMissCount,
+				PitchMissCount:        pitchMissCount,
 				SalesLeadIDs:          salesLeadIDs,
 				ReturnedLeadIDs:       returnedLeadIDs,
 				AppointmentsLeadIDs:   appointmentsLeadIDs,
 			}
 			ent.Campaigns = append(ent.Campaigns, campaignEntry{
-				VendorID:      vendorID,
-				CampaignID:    campaignID,
-				CampaignName:  campaignName,
+				VendorID:     vendorID,
+				CampaignID:   campaignID,
+				CampaignName: campaignName,
 				VerticalName: verticalName,
-				Stats:         stats,
+				Stats:        stats,
 			})
 			addStats(ent.TotalStats, stats)
 		}
@@ -210,28 +211,37 @@ ORDER BY vendor_id, campaign_id
 			})
 		}
 
-		result := make([]fiber.Map, 0, len(vendorData))
+		result := make([]vendorDashboardItem, 0, len(vendorData))
 		for _, v := range vendorData {
-			campaigns := make([]fiber.Map, 0, len(v.Campaigns))
+			campaigns := make([]campaignItemDTO, 0, len(v.Campaigns))
 			for _, camp := range v.Campaigns {
-				campaigns = append(campaigns, fiber.Map{
-					"vendor_id":      camp.VendorID,
-					"campaign_id":    camp.CampaignID,
-					"campaign_name":  camp.CampaignName,
-					"vertical_name":  camp.VerticalName,
-					"stats":          statsToMap(camp.Stats),
+				campaigns = append(campaigns, campaignItemDTO{
+					VendorID:     camp.VendorID,
+					CampaignID:   camp.CampaignID,
+					CampaignName: camp.CampaignName,
+					VerticalName: camp.VerticalName,
+					Stats:        toCampaignStatsDTO(camp.Stats),
 				})
 			}
-			result = append(result, fiber.Map{
-				"vendor_id":   v.VendorID,
-				"vendor_name": v.VendorName,
-				"totalStats":  statsToMap(*v.TotalStats),
-				"campaigns":   campaigns,
+			result = append(result, vendorDashboardItem{
+				VendorName:  v.VendorName,
+				VendorID:    v.VendorID,
+				TotalStats:  toTotalStatsDTO(*v.TotalStats),
+				Campaigns:   campaigns,
 			})
 		}
-		sortByRevenueDesc(result)
+		sort.Slice(result, func(i, j int) bool {
+			return result[j].TotalStats.Revenue < result[i].TotalStats.Revenue
+		})
 		return c.JSON(result)
 	}
+}
+
+func ptrStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func splitNonEmpty(s, sep string) []string {
@@ -276,45 +286,34 @@ func addStats(dst *statsMap, src statsMap) {
 	dst.PitchMissCount += src.PitchMissCount
 }
 
-func statsToMap(s statsMap) fiber.Map {
-	m := fiber.Map{
-		"generated":                s.Generated,
-		"accepted":                 s.Accepted,
-		"duplicated":              s.Duplicated,
-		"errored":                 s.Errored,
-		"revenue":                 s.Revenue,
-		"cost":                    s.Cost,
-		"profit":                  s.Profit,
-		"appointments":            s.Appointments,
-		"sales":                   s.Sales,
-		"returned":                s.Returned,
-		"returned_amount":         s.ReturnedAmount,
-		"total_sale_amount":       s.TotalSaleAmount,
-		"total_net_sale_amount":    s.TotalNetSaleAmount,
-		"answering_machine_count": s.AnsweringMachineCount,
-		"issue_count":             s.IssueCount,
-		"hung_up_count":           s.HungUpCount,
-		"pitch_miss_count":        s.PitchMissCount,
+func toTotalStatsDTO(s statsMap) totalStatsDTO {
+	return totalStatsDTO{
+		Generated:             s.Generated,
+		Accepted:              s.Accepted,
+		Duplicated:            s.Duplicated,
+		Errored:               s.Errored,
+		Revenue:               s.Revenue,
+		Cost:                  s.Cost,
+		Profit:                s.Profit,
+		Appointments:          s.Appointments,
+		Sales:                 s.Sales,
+		Returned:              s.Returned,
+		ReturnedAmount:        s.ReturnedAmount,
+		TotalSaleAmount:       s.TotalSaleAmount,
+		TotalNetSaleAmount:    s.TotalNetSaleAmount,
+		AnsweringMachineCount: s.AnsweringMachineCount,
+		IssueCount:            s.IssueCount,
+		HungUpCount:           s.HungUpCount,
+		PitchMissCount:        s.PitchMissCount,
 	}
-	if len(s.SalesLeadIDs) > 0 || len(s.ReturnedLeadIDs) > 0 || len(s.AppointmentsLeadIDs) > 0 {
-		m["sales_lead_ids"] = s.SalesLeadIDs
-		m["returned_lead_ids"] = s.ReturnedLeadIDs
-		m["appointments_lead_ids"] = s.AppointmentsLeadIDs
-	}
-	return m
 }
 
-func sortByRevenueDesc(slice []fiber.Map) {
-	for i := 0; i < len(slice); i++ {
-		for j := i + 1; j < len(slice); j++ {
-			totalI, _ := slice[i]["totalStats"].(fiber.Map)
-			totalJ, _ := slice[j]["totalStats"].(fiber.Map)
-			revI, _ := totalI["revenue"].(float64)
-			revJ, _ := totalJ["revenue"].(float64)
-			if revJ > revI {
-				slice[i], slice[j] = slice[j], slice[i]
-			}
-		}
+func toCampaignStatsDTO(s statsMap) campaignStatsDTO {
+	return campaignStatsDTO{
+		totalStatsDTO:         toTotalStatsDTO(s),
+		SalesLeadIDs:          s.SalesLeadIDs,
+		ReturnedLeadIDs:       s.ReturnedLeadIDs,
+		AppointmentsLeadIDs:   s.AppointmentsLeadIDs,
 	}
 }
 
@@ -326,32 +325,75 @@ type vendorEntry struct {
 }
 
 type campaignEntry struct {
-	VendorID      int64
-	CampaignID    int64
-	CampaignName  string
-	VerticalName  string
-	Stats         statsMap
+	VendorID     int64
+	CampaignID   int64
+	CampaignName string
+	VerticalName string
+	Stats        statsMap
 }
 
 type statsMap struct {
-	Generated              int
-	Accepted               int
-	Duplicated             int
-	Errored                int
-	Revenue                float64
-	Cost                   float64
-	Profit                 float64
-	Appointments           int
-	Sales                  int
-	Returned               int
-	ReturnedAmount         float64
-	TotalSaleAmount        float64
-	TotalNetSaleAmount     float64
+	Generated             int
+	Accepted              int
+	Duplicated            int
+	Errored               int
+	Revenue               float64
+	Cost                  float64
+	Profit                float64
+	Appointments          int
+	Sales                 int
+	Returned              int
+	ReturnedAmount        float64
+	TotalSaleAmount       float64
+	TotalNetSaleAmount    float64
 	AnsweringMachineCount int
-	IssueCount             int
-	HungUpCount            int
-	PitchMissCount         int
-	SalesLeadIDs           []string
-	ReturnedLeadIDs        []string
-	AppointmentsLeadIDs    []string
+	IssueCount            int
+	HungUpCount           int
+	PitchMissCount        int
+	SalesLeadIDs          []string
+	ReturnedLeadIDs       []string
+	AppointmentsLeadIDs   []string
+}
+
+// Response DTOs (field order matches Python JSON output)
+type vendorDashboardItem struct {
+	VendorName  string             `json:"vendor_name"`
+	VendorID    int64              `json:"vendor_id"`
+	TotalStats totalStatsDTO       `json:"totalStats"`
+	Campaigns   []campaignItemDTO  `json:"campaigns"`
+}
+
+type totalStatsDTO struct {
+	Generated             int     `json:"generated"`
+	Accepted              int     `json:"accepted"`
+	Duplicated            int     `json:"duplicated"`
+	Errored               int     `json:"errored"`
+	Revenue               float64 `json:"revenue"`
+	Cost                  float64 `json:"cost"`
+	Profit                float64 `json:"profit"`
+	Appointments          int     `json:"appointments"`
+	Sales                 int     `json:"sales"`
+	Returned              int     `json:"returned"`
+	ReturnedAmount        float64 `json:"returned_amount"`
+	TotalSaleAmount       float64 `json:"total_sale_amount"`
+	TotalNetSaleAmount    float64 `json:"total_net_sale_amount"`
+	AnsweringMachineCount int     `json:"answering_machine_count"`
+	IssueCount            int     `json:"issue_count"`
+	HungUpCount           int     `json:"hung_up_count"`
+	PitchMissCount        int     `json:"pitch_miss_count"`
+}
+
+type campaignItemDTO struct {
+	VendorID     int64            `json:"vendor_id"`
+	CampaignID   int64            `json:"campaign_id"`
+	CampaignName string           `json:"campaign_name"`
+	VerticalName string           `json:"vertical_name"`
+	Stats        campaignStatsDTO `json:"stats"`
+}
+
+type campaignStatsDTO struct {
+	totalStatsDTO
+	SalesLeadIDs        []string `json:"sales_lead_ids,omitempty"`
+	ReturnedLeadIDs     []string `json:"returned_lead_ids,omitempty"`
+	AppointmentsLeadIDs []string `json:"appointments_lead_ids,omitempty"`
 }
