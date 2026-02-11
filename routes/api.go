@@ -16,10 +16,11 @@ func SetupAPIRoutes(app *fiber.App, storageManager *storage.Manager) {
 	// API welcome route
 	api.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"message": "Welcome to Mithril API",
-			"version": "1.0.0",
-			"docs":    "/docs",
-			"monitor": "/monitor",
+			"message":  "Welcome to Mithril API",
+			"version":  "1.0.0",
+			"docs":     "/docs",
+			"monitorz": "/monitorz",
+			"monitor":  "/monitor",
 		})
 	})
 

@@ -47,7 +47,7 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /livez
             port: 4000
           initialDelaySeconds: 30
           periodSeconds: 10
@@ -55,7 +55,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /ready
+            path: /readyz
             port: 4000
           initialDelaySeconds: 5
           periodSeconds: 5

@@ -8,7 +8,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/template/html/v2"
@@ -59,6 +61,7 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n",
 	}))
 	app.Use(recover.New())
+	app.Use(healthcheck.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: getEnv("CORS_ORIGINS", "*"),
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
@@ -114,6 +117,12 @@ func main() {
 			"version": getEnv("APP_VERSION", "1.0.0"),
 		})
 	})
+
+	// Fiber Monitor dashboard (CPU, RAM, connections, charts). Path /fiber-monitor to avoid clashing with mithril /monitor and Prometheus /metrics.
+	app.Get("/monitorr", monitor.New(monitor.Config{
+		Title:   getEnv("APP_NAME", "myproject7") + " Monitor",
+		Refresh: 3 * time.Second,
+	}))
 
 	// Start server
 	port := getEnv("PORT", "4000")
