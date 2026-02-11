@@ -31,15 +31,18 @@ func NewHandlers(userRepo *repositories.UserRepository, jwtSecret string) *Handl
 	return &Handlers{UserRepo: userRepo, JWTSecret: jwtSecret}
 }
 
+// isRegisterEnabled returns true when ENABLE_REGISTER is a truthy value (true, 1, yes); false otherwise.
+func isRegisterEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_REGISTER")))
+	return v == "true" || v == "1" || v == "yes"
+}
+
 // Register handles POST /auth/register.
 func (h *Handlers) Register(c *fiber.Ctx) error {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_REGISTER"))) {
-	case "1", "true":
-		// allow registration
-	default:
+	if !isRegisterEnabled() {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error":   "registration_disabled",
-			"message": "Registration is disabled. Set ENABLE_REGISTER=1 to enable.",
+			"message": "Registration is disabled. Set ENABLE_REGISTER=true to enable.",
 		})
 	}
 	if h.UserRepo == nil {
