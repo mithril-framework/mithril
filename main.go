@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"mithril-rev/internal/db"
+
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
@@ -17,7 +19,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"mithril-rev/internal/db"
 )
 
 var dbPool *pgxpool.Pool

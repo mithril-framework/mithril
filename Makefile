@@ -36,16 +36,28 @@ clean: ## Clean build artifacts
 install-tools: ## Install goose CLI for migrations
 	go install github.com/pressly/goose/v3/cmd/goose@latest
 
-migrate-up: ## Run database migrations up (set DATABASE_URL)
-	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL (e.g. export DATABASE_URL=postgres://user:pass@localhost:5432/mithril_rev?sslmode=disable)"; exit 1)
+migrate-up: ## Run database migrations up (set DATABASE_URL or DB_* in .env)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* (e.g. DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) in .env"; exit 1); \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
 
 migrate-down: ## Run database migrations down
-	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL"; exit 1)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" down
 
 migrate-status: ## Show migration status
-	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL"; exit 1)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" status
 
 seed: ## Seed database (demo user). Run migrate-up first.
