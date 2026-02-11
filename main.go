@@ -44,6 +44,7 @@ func main() {
 		FilePath: "./docs/swagger.json",
 		Path:     "docs",
 		Title:    "Mithril Rev API",
+		CacheAge: 0, // no cache so doc updates show after restart
 	}))
 
 	app.Get("/", func(c *fiber.Ctx) error {
