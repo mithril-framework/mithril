@@ -1,0 +1,32 @@
+{{define "content"}}
+<div class="text-center">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4">Welcome to Mithril</h1>
+    <p class="text-xl text-gray-600 mb-8">A batteries-included web framework built on Fiber</p>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-2">Fast & Efficient</h3>
+            <p class="text-gray-600">Built on Fiber v2 for high performance and low memory usage.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-2">Developer Friendly</h3>
+            <p class="text-gray-600">CLI tools, auto-generated docs, and comprehensive features.</p>
+        </div>
+        
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-2">Production Ready</h3>
+            <p class="text-gray-600">Docker, Kubernetes, monitoring, and deployment tools included.</p>
+        </div>
+    </div>
+    
+    <div class="mt-12">
+        <a href="/api" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 mr-4">
+            View API
+        </a>
+        <a href="/docs" class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700">
+            Documentation
+        </a>
+    </div>
+</div>
+{{end}}

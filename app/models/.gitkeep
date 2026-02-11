@@ -1,0 +1,4 @@
+# Models directory
+# Place your GORM models here
+# Remember to register models using migration.RegisterModel() in init() functions
+

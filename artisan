@@ -1,0 +1,412 @@
+#!/bin/bash
+
+# Mithril Artisan CLI
+# Local command-line interface for Mithril applications
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Print colored output
+print_color() {
+    printf "${1}${2}${NC}\n"
+}
+
+# Check if Go is installed
+check_go() {
+    if ! command -v go &> /dev/null; then
+        print_color $RED "Error: Go is not installed or not in PATH"
+        exit 1
+    fi
+}
+
+# Check if we're in a Mithril project
+check_project() {
+    if [ ! -f "main.go" ] || [ ! -f "go.mod" ]; then
+        print_color $RED "Error: Not in a Mithril project directory"
+        print_color $YELLOW "Make sure you're in the root directory of your Mithril project"
+        exit 1
+    fi
+}
+
+# Show help
+show_help() {
+    print_color $BLUE "Mithril Artisan CLI"
+    echo ""
+    echo "Usage: ./artisan [command] [options]"
+    echo ""
+    echo "Available commands:"
+    echo "  make:controller <name>     Create a new controller"
+    echo "  make:model <name>          Create a new model"
+    echo "  make:middleware <name>     Create a new middleware"
+    echo "  make:module <name>         Create a new module [--full|--api-only|--web-only]"
+	echo "  make:auth                  Scaffold authentication"
+	echo "  createsuperuser            Create a superuser account"
+    echo "  migrate                    Run database migrations (GORM AutoMigrate)"
+    echo "  db:seed                    Seed the database"
+    echo "  serve                      Start the development server"
+    echo "  routes:list                List all routes"
+            echo "  storage:backup              Backup storage to tar.gz"
+            echo "  storage:link                Create public storage symlink (placeholder)"
+    echo "  make:mail <name>           Create a new mail template"
+    echo "  mail:test <email>          Send a test email"
+    echo "  queue:work [queue]         Start queue worker"
+    echo "  queue:failed [limit]       List failed jobs"
+    echo "  queue:retry <job-id>       Retry a failed job"
+    echo "  schedule:run               Run scheduled tasks"
+    echo "  schedule:list              List scheduled tasks"
+    echo "  help                       Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  ./artisan make:controller UserController"
+    echo "  ./artisan make:model User"
+    echo "  ./artisan migrate"
+    echo "  ./artisan serve"
+}
+
+# Create controller
+make_controller() {
+    local name=$1
+    if [ -z "$name" ]; then
+        print_color $RED "Error: Controller name is required"
+        echo "Usage: ./artisan make:controller <name>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Creating controller: $name"
+    # TODO: Implement controller generation
+    print_color $GREEN "Controller generation will be implemented in Phase 6"
+}
+
+# Create model
+make_model() {
+    local name=$1
+    if [ -z "$name" ]; then
+        print_color $RED "Error: Model name is required"
+        echo "Usage: ./artisan make:model <name>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Creating model: $name"
+    # TODO: Implement model generation
+    print_color $GREEN "Model generation will be implemented in Phase 3"
+}
+
+# Create middleware
+make_middleware() {
+    local name=$1
+    if [ -z "$name" ]; then
+        print_color $RED "Error: Middleware name is required"
+        echo "Usage: ./artisan make:middleware <name>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Creating middleware: $name"
+    # TODO: Implement middleware generation
+    print_color $GREEN "Middleware generation will be implemented in Phase 7"
+}
+
+# Create module
+make_module() {
+    local module_name=$1
+    local flags=""
+    
+    # Parse additional arguments for flags
+    shift
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --full|-f)
+                flags="--full"
+                ;;
+            --api-only|-a)
+                flags="--api-only"
+                ;;
+            --web-only|-w)
+                flags="--web-only"
+                ;;
+            *)
+                # Unknown option
+                ;;
+        esac
+        shift
+    done
+    
+    if [ -z "$module_name" ]; then
+        print_color $RED "Error: Module name is required"
+        print_color $YELLOW "Usage: ./artisan make:module <name> [--full|--api-only|--web-only]"
+        return 1
+    fi
+    
+    print_color $YELLOW "Creating module: $module_name"
+    if [ -n "$flags" ]; then
+        print_color $BLUE "Flags: $flags"
+    fi
+    
+    # Call the global mithril CLI
+    ../../mithril-cli make module $module_name $flags
+}
+
+# Scaffold authentication
+make_auth() {
+    print_color $YELLOW "Scaffolding authentication..."
+    # TODO: Implement auth scaffolding
+    print_color $GREEN "Auth scaffolding will be implemented in Phase 5"
+}
+
+# Create superuser
+createsuperuser() {
+    print_color $YELLOW "Creating superuser..."
+    # TODO: Implement superuser creation
+    print_color $GREEN "Superuser creation will be implemented in Phase 5"
+}
+
+# Run migrations
+migrate() {
+    print_color $YELLOW "Running migrations..."
+    go run main.go migrate
+}
+
+# Note: Rollback, fresh, and status commands are deprecated with GORM AutoMigrate
+# GORM AutoMigrate automatically updates schema based on model definitions
+
+# Seed database
+db_seed() {
+    local seeder=${1:-""}
+    if [ -n "$seeder" ]; then
+        print_color $YELLOW "Seeding database with $seeder..."
+        go run main.go seed $seeder
+    else
+        print_color $YELLOW "Seeding database..."
+        go run main.go seed
+    fi
+}
+
+# Start development server
+serve() {
+    print_color $YELLOW "Starting development server..."
+    go run main.go
+}
+
+# List routes
+routes_list() {
+    print_color $YELLOW "Listing routes..."
+    # TODO: Implement route listing
+    print_color $GREEN "Route listing will be implemented in Phase 19"
+}
+
+        # Storage backup (calls example endpoint if available)
+        storage_backup() {
+            print_color $YELLOW "Backing up storage..."
+            if command -v curl >/dev/null 2>&1; then
+                curl -fSLo backup.tar.gz http://localhost:3001/backup && print_color $GREEN "Saved to backup.tar.gz" || print_color $RED "Backup endpoint not running (example-storage)."
+            else
+                print_color $RED "curl not found. Use: curl -fSLo backup.tar.gz http://localhost:3001/backup"
+            fi
+        }
+
+# Storage link (placeholder)
+storage_link() {
+    print_color $YELLOW "Creating storage symlink..."
+    # Placeholder: project-specific public/storage -> storage mapping
+    if [ -d "public" ]; then
+        ln -sf ../storage public/storage && print_color $GREEN "Linked public/storage -> ../storage" || print_color $RED "Failed to link"
+    else
+        print_color $RED "public directory not found"
+    fi
+}
+
+# Make mail template
+make_mail() {
+    local name=$1
+    if [ -z "$name" ]; then
+        print_color $RED "Error: Mail template name is required"
+        echo "Usage: ./artisan make:mail <name>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Creating mail template: $name"
+    mkdir -p app/mail
+    
+    cat > "app/mail/${name,,}.go" <<EOF
+package mail
+
+import (
+    "context"
+    "github.com/mithril-framework/mithril/pkg/mail"
+)
+
+// ${name} sends a ${name,,} email
+func ${name}(mailer *mail.Mailer, to string, data map[string]interface{}) error {
+    subject := "Your Subject Here"
+    text := "Plain text version of your email"
+    html := "<h1>HTML version</h1><p>Your email content here</p>"
+    
+    return mailer.Send(context.Background(), to, subject, text, html)
+}
+EOF
+    
+    print_color $GREEN "Mail template created: app/mail/${name,,}.go"
+}
+
+# Send test email
+mail_test() {
+    local email=$1
+    if [ -z "$email" ]; then
+        print_color $RED "Error: Email address is required"
+        echo "Usage: ./artisan mail:test <email>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Sending test email to: $email"
+    print_color $YELLOW "Make sure your MAIL_* env vars are set (see .env.example)"
+    print_color $YELLOW "For Mailhog: MAIL_HOST=localhost MAIL_PORT=1025"
+    
+    # Use curl to test endpoint if example-mail is running
+    if command -v curl >/dev/null 2>&1; then
+        curl -X POST "http://localhost:3002/send-test" \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"$email\"}" 2>/dev/null && \
+            print_color $GREEN "Test email sent! Check Mailhog at http://localhost:8025" || \
+            print_color $RED "Failed to send. Is example-mail running? (go run example-mail/main.go)"
+    else
+        print_color $RED "curl not found. Install curl or run: go run example-mail/main.go"
+    fi
+}
+
+# Start queue worker
+queue_work() {
+    local queue=${1:-default}
+    
+    print_color $YELLOW "Starting queue worker for queue: $queue"
+    print_color $BLUE "Press Ctrl+C to stop"
+    
+    # TODO: Implement actual queue worker with proper signal handling
+    print_color $GREEN "Queue worker starting..."
+    go run main.go worker "$queue"
+}
+
+# List failed jobs
+queue_failed() {
+    local limit=${1:-10}
+    
+    print_color $YELLOW "Listing failed jobs (limit: $limit)"
+    
+    # TODO: Implement failed jobs listing
+    print_color $GREEN "Failed jobs listing will be integrated with queue system"
+}
+
+# Retry a failed job
+queue_retry() {
+    local job_id=$1
+    if [ -z "$job_id" ]; then
+        print_color $RED "Error: Job ID is required"
+        echo "Usage: ./artisan queue:retry <job-id>"
+        exit 1
+    fi
+    
+    print_color $YELLOW "Retrying job: $job_id"
+    
+    # TODO: Implement job retry
+    print_color $GREEN "Job retry will be integrated with queue system"
+}
+
+# Run scheduled tasks
+schedule_run() {
+    print_color $YELLOW "Running scheduled tasks..."
+    
+    # TODO: Implement scheduler run
+    print_color $GREEN "Scheduler will be integrated in the application"
+    go run main.go schedule:run
+}
+
+# List scheduled tasks
+schedule_list() {
+    print_color $YELLOW "Listing scheduled tasks..."
+    
+    # TODO: Implement scheduler list
+    print_color $GREEN "Scheduler task listing will be integrated in the application"
+    go run main.go schedule:list
+}
+
+# Main script logic
+main() {
+    check_go
+    check_project
+    
+    case "$1" in
+        "make:controller")
+            make_controller "$2"
+            ;;
+        "make:model")
+            make_model "$2"
+            ;;
+        "make:middleware")
+            make_middleware "$2"
+            ;;
+        "make:module")
+            make_module "$2"
+            ;;
+        "make:auth")
+            make_auth
+            ;;
+        "createsuperuser")
+            createsuperuser
+            ;;
+        "migrate")
+            migrate
+            ;;
+        "db:seed")
+            db_seed
+            ;;
+        "serve")
+            serve
+            ;;
+        "routes:list")
+            routes_list
+            ;;
+                "storage:backup")
+                    storage_backup
+                    ;;
+                "storage:link")
+                    storage_link
+                    ;;
+        "make:mail")
+            make_mail "$2"
+            ;;
+        "mail:test")
+            mail_test "$2"
+            ;;
+        "queue:work")
+            queue_work "$2"
+            ;;
+        "queue:failed")
+            queue_failed "$2"
+            ;;
+        "queue:retry")
+            queue_retry "$2"
+            ;;
+        "schedule:run")
+            schedule_run
+            ;;
+        "schedule:list")
+            schedule_list
+            ;;
+        "help"|"-h"|"--help"|"")
+            show_help
+            ;;
+        *)
+            print_color $RED "Unknown command: $1"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+# Run main function with all arguments
+main "$@"
