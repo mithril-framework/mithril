@@ -33,10 +33,17 @@ clean: ## Clean build artifacts
 	rm -rf tmp/
 	rm -f coverage.out coverage.html
 
-kill:
+kill: ## Kill app on port 4000 and Air (parent of that process)
 	@pids=$$(lsof -t -i:4000); \
 	if [ -n "$$pids" ]; then \
-		kill -9 $$pids; \
-	fi
+		for pid in $$pids; do \
+			ppid=$$(ps -o ppid= -p $$pid 2>/dev/null | tr -d ' '); \
+			[ -n "$$ppid" ] && [ "$$ppid" -gt 1 ] && kill -9 $$ppid 2>/dev/null; \
+		done; \
+		kill -9 $$pids 2>/dev/null; \
+	fi; \
+	air_pids=$$(pgrep -f '\\.air\\.toml' 2>/dev/null); \
+	[ -n "$$air_pids" ] && kill -9 $$air_pids 2>/dev/null; \
+	true
 # Variables
 APP_NAME ?= mithril-rev
