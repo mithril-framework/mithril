@@ -23,6 +23,10 @@ build: ## Build the application
 	@echo "Building application..."
 	go build -o bin/app .
 
+build-linux: ## Build the application
+	@echo "Building application..."
+	GOOS=linux GOARCH=amd64 go build -o bin/app-linux .
+
 test: ## Run tests
 	@echo "Running tests..."
 	go test -v ./...

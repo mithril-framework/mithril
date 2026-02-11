@@ -91,13 +91,15 @@ func main() {
 		app.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
 	}
 	app.Use(healthcheck.New())
-	app.Use(swagger.New(swagger.Config{
-		BasePath: "/",
-		FilePath: "./docs/swagger.json",
-		Path:     "docs",
-		Title:    "Mithril Rev API",
-		CacheAge: 0, // no cache so doc updates show after restart
-	}))
+	if _, err := os.Stat("./docs/swagger.json"); err == nil {
+		app.Use(swagger.New(swagger.Config{
+			BasePath: "/",
+			FilePath: "./docs/swagger.json",
+			Path:     "docs",
+			Title:    "Mithril Rev API",
+			CacheAge: 0, // no cache so doc updates show after restart
+		}))
+	}
 
 	app.Static("/static", "./public/static")
 
