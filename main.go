@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log"
+	"myproject7/app/middleware"
+	"myproject7/config"
 	"os"
 	"time"
 
@@ -11,18 +13,19 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
+
+	// "github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-	"github.com/gofiber/template/html/v2"
-
-	"github.com/mithril-framework/mithril/config"
 	"github.com/mithril-framework/mithril/pkg/auth"
-	"github.com/mithril-framework/mithril/pkg/middleware"
-	"github.com/mithril-framework/mithril/pkg/monitoring"
 	"github.com/mithril-framework/mithril/pkg/storage"
-	"github.com/mithril-framework/mithril/pkg/swagger"
-
-	"myproject7/routes"
+	// "github.com/mithril-framework/mithril/config"
+	// "github.com/mithril-framework/mithril/pkg/auth"
+	// "github.com/mithril-framework/mithril/pkg/middleware"
+	// "github.com/mithril-framework/mithril/pkg/monitoring"
+	// "github.com/mithril-framework/mithril/pkg/storage"
+	// "github.com/mithril-framework/mithril/pkg/swagger"
+	// "myproject7/routes"
 )
 
 func main() {
@@ -35,13 +38,13 @@ func main() {
 	loadEnv()
 
 	// Create template engine
-	engine := html.New("./templates", ".html")
+	// engine := html.New("./templates", ".html")
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
 		AppName:      getEnv("APP_NAME", "myproject7"),
 		ServerHeader: "Mithril",
-		Views:        engine,
+		// Views:        engine,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
@@ -69,7 +72,7 @@ func main() {
 	}))
 
 	// Static files
-	app.Static("/assets", "./public")
+	// app.Static("/assets", "./public")
 
 	// Initialize JWT manager for authentication
 	jwtSecret := getEnv("JWT_SECRET", "your-jwt-secret-key-change-in-production")
@@ -85,17 +88,17 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager)
 
 	// Initialize Swagger
-	swaggerGenerator := swagger.NewGenerator(
-		getEnv("APP_NAME", "myproject7"),
-		getEnv("APP_VERSION", "1.0.0"),
-		"API Documentation",
-	)
-	swaggerMiddleware := swagger.NewSwaggerMiddleware(swaggerGenerator, getEnv("APP_DEBUG", "false") == "true")
-	swaggerMiddleware.RegisterRoutes(app)
+	// swaggerGenerator := swagger.NewGenerator(
+	// 	getEnv("APP_NAME", "myproject7"),
+	// 	getEnv("APP_VERSION", "1.0.0"),
+	// 	"API Documentation",
+	// )
+	// swaggerMiddleware := swagger.NewSwaggerMiddleware(swaggerGenerator, getEnv("APP_DEBUG", "false") == "true")
+	// swaggerMiddleware.RegisterRoutes(app)
 
 	// Initialize monitoring
-	systemMonitor := monitoring.NewSystemMonitor()
-	systemMonitor.RegisterRoutes(app)
+	// systemMonitor := monitoring.NewSystemMonitor()
+	// systemMonitor.RegisterRoutes(app)
 
 	// Initialize storage from env (S3/MinIO)
 	storageManager, err := setupStorageFromEnv()
@@ -105,9 +108,9 @@ func main() {
 	}
 
 	// Routes
-	routes.SetupAPIRoutes(app, storageManager)
-	routes.SetupWebRoutes(app)
-	routes.SetupAuthRoutes(app, jwtManager, authMiddleware)
+	// routes.SetupAPIRoutes(app, storageManager)
+	// routes.SetupWebRoutes(app)
+	// routes.SetupAuthRoutes(app, jwtManager, authMiddleware)
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
