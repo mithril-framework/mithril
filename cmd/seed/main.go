@@ -50,5 +50,5 @@ func main() {
 	if err := repo.Create(ctx, u); err != nil {
 		log.Fatalf("seed create user: %v", err)
 	}
-	log.Printf("Seeded demo user id=%d email=user@example.com", u.ID)
+	log.Printf("Seeded demo user id=%s email=user@example.com", u.ID)
 }

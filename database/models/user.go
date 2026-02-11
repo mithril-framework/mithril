@@ -1,10 +1,14 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // User represents a user row (pgx scanning).
 type User struct {
-	ID           int64
+	ID           uuid.UUID
 	Email        string
 	PasswordHash string
 	FirstName    string

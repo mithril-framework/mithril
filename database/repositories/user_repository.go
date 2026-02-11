@@ -5,6 +5,7 @@ import (
 
 	"mithril-rev/database/models"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -30,7 +31,7 @@ func (r *UserRepository) Create(ctx context.Context, u *models.User) error {
 }
 
 // GetByID returns a user by id.
-func (r *UserRepository) GetByID(ctx context.Context, id int64) (*models.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
 		SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at
 		FROM users WHERE id = $1
@@ -75,7 +76,7 @@ func (r *UserRepository) Update(ctx context.Context, u *models.User) error {
 }
 
 // Delete deletes a user by id.
-func (r *UserRepository) Delete(ctx context.Context, id int64) error {
+func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
 }

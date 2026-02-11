@@ -100,7 +100,7 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "authentication_failed", "message": "invalid credentials"})
 	}
-	userID := fmt.Sprintf("%d", user.ID)
+	userID := user.ID.String()
 	roles := []string{"user"}
 	sessionID := "session_" + fmt.Sprintf("%d", time.Now().Unix())
 	accessToken, refreshToken, expiresAt, err := h.issueTokenPair(userID, user.Email, roles, sessionID)
