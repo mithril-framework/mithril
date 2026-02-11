@@ -16,6 +16,7 @@ import (
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
@@ -65,6 +66,9 @@ func main() {
 	})
 
 	app.Use(requestid.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:3000, https://api.kkk.com",
+	}))
 	if _, err := os.Stat("./public/assets/favicon.ico"); err == nil {
 		app.Use(favicon.New(favicon.Config{
 			File: "./public/assets/favicon.ico",
