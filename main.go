@@ -16,6 +16,7 @@ import (
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/favicon"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -64,6 +65,12 @@ func main() {
 	})
 
 	app.Use(requestid.New())
+	if _, err := os.Stat("./public/assets/favicon.ico"); err == nil {
+		app.Use(favicon.New(favicon.Config{
+			File: "./public/assets/favicon.ico",
+			URL:  "/favicon.ico",
+		}))
+	}
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n",
 	}))
@@ -86,6 +93,8 @@ func main() {
 		Title:    "Mithril Rev API",
 		CacheAge: 0, // no cache so doc updates show after restart
 	}))
+
+	app.Static("/static", "./public/static")
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
