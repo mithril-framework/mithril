@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build test clean
+.PHONY: help install run run-air build test clean migrate-up migrate-down migrate-status seed install-tools
 
 # Default target
 help: ## Show this help message
@@ -32,6 +32,24 @@ clean: ## Clean build artifacts
 	rm -rf bin/
 	rm -rf tmp/
 	rm -f coverage.out coverage.html
+
+install-tools: ## Install goose CLI for migrations
+	go install github.com/pressly/goose/v3/cmd/goose@latest
+
+migrate-up: ## Run database migrations up (set DATABASE_URL)
+	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL (e.g. export DATABASE_URL=postgres://user:pass@localhost:5432/mithril_rev?sslmode=disable)"; exit 1)
+	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
+
+migrate-down: ## Run database migrations down
+	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL"; exit 1)
+	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" down
+
+migrate-status: ## Show migration status
+	@test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL"; exit 1)
+	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" status
+
+seed: ## Seed database (demo user). Run migrate-up first.
+	go run ./cmd/seed
 
 kill: ## Kill app on port 4000 and Air (parent of that process)
 	@pids=$$(lsof -t -i:4000); \

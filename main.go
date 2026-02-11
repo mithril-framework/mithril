@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,9 +16,28 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"mithril-rev/internal/db"
 )
 
+var dbPool *pgxpool.Pool
+
 func main() {
+	ctx := context.Background()
+	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {
+		dsn := db.DSNFromEnv()
+		pool, err := db.New(ctx, dsn)
+		if err != nil {
+			log.Fatalf("database: %v", err)
+		}
+		defer pool.Close()
+		if err := pool.Ping(ctx); err != nil {
+			log.Fatalf("database ping: %v", err)
+		}
+		dbPool = pool
+		log.Println("Database connected")
+	}
+
 	app := fiber.New(fiber.Config{
 		AppName: getEnv("APP_NAME", "mithril-rev"),
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -56,7 +76,14 @@ func main() {
 	})
 
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{"status": "ok"})
+		status := fiber.Map{"status": "ok"}
+		if dbPool != nil {
+			if err := dbPool.Ping(c.Context()); err != nil {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "unhealthy", "database": err.Error()})
+			}
+			status["database"] = "connected"
+		}
+		return c.JSON(status)
 	})
 
 	app.Get("/monitor", monitor.New(monitor.Config{
