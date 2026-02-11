@@ -8,15 +8,16 @@ import (
 	"strings"
 	"time"
 
+	"mithril-rev/database/repositories"
 	"mithril-rev/internal/auth"
 	"mithril-rev/internal/db"
-	"mithril-rev/database/repositories"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
+	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
@@ -67,6 +68,9 @@ func main() {
 		Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n",
 	}))
 	app.Use(recover.New())
+	if isHelmetEnabled() {
+		app.Use(helmet.New())
+	}
 	if isCompressionEnabled() {
 		app.Use(func(c *fiber.Ctx) error {
 			c.Request().Header.Set("Accept-Encoding", "gzip")
@@ -146,6 +150,12 @@ func getEnv(key, defaultValue string) string {
 // isCompressionEnabled returns true when ENABLE_COMPRESSION is true, 1, or yes (case-insensitive).
 func isCompressionEnabled() bool {
 	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_COMPRESSION")))
+	return v == "true" || v == "1" || v == "yes"
+}
+
+// isHelmetEnabled returns true when ENABLE_HELMET is true, 1, or yes (case-insensitive).
+func isHelmetEnabled() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_HELMET")))
 	return v == "true" || v == "1" || v == "yes"
 }
 
