@@ -13,6 +13,7 @@ import (
 	"mithril-rev/internal/db"
 	"mithril-rev/internal/vendor"
 
+	"github.com/bytedance/sonic"
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
@@ -52,7 +53,9 @@ func main() {
 	}
 
 	app := fiber.New(fiber.Config{
-		AppName: getEnv("APP_NAME", "mithril-rev"),
+		AppName:     getEnv("APP_NAME", "mithril-rev"),
+		JSONEncoder: sonic.Marshal,
+		JSONDecoder: sonic.Unmarshal,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
