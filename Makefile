@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -100,6 +100,11 @@ backup-list: ## List backups in database/backups
 
 routes: ## List all registered routes (no server start)
 	@[ -f .env ] && set -a && . ./.env && set +a; LIST_ROUTES=1 go run .
+
+swagger: ## Regenerate OpenAPI schema from route files via OpenAI (OPENAI_API_KEY in .env)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	test -n "$$OPENAI_API_KEY" || { echo "Set OPENAI_API_KEY in .env"; exit 1; }; \
+	go run ./cmd/swagger
 
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.

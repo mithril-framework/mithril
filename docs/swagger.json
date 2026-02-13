@@ -1,50 +1,426 @@
 {
-  "openapi": "3.0.0",
-  "info": {
-    "title": "Mithril Rev API",
-    "version": "1.0.0",
-    "description": "Minimal API documentation for the Mithril Rev service."
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "example": "ok",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "remember": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "LoginResponse": {
+        "properties": {
+          "data": {
+            "properties": {
+              "tokens": {
+                "type": "object"
+              },
+              "user": {
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MeResponse": {
+        "properties": {
+          "data": {
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "roles": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RootResponse": {
+        "properties": {
+          "message": {
+            "example": "Mithril Rev API",
+            "type": "string"
+          },
+          "version": {
+            "example": "1.0.0",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "JWT",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
   },
+  "info": {
+    "description": "Minimal API documentation for the Mithril Rev service.",
+    "title": "Mithril Rev API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.0",
   "paths": {
     "/": {
       "get": {
-        "summary": "Root welcome",
         "description": "Returns basic API information.",
         "responses": {
           "200": {
-            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RootResponse"
                 }
               }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Root welcome"
+      }
+    },
+    "/auth/enable-2fa": {
+      "post": {
+        "description": "Start 2FA setup. Stub.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Enable 2FA"
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "description": "Request password reset. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
             }
           }
-        }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Forgot password"
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "description": "Authenticate; demo user@example.com / password.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        },
+        "summary": "Login"
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "description": "Clear auth state. Requires Bearer token.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Logout"
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "description": "Return authenticated user. Requires Bearer token.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Current user"
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "description": "Issue new access and refresh tokens.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Invalid refresh token"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Refresh tokens"
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "description": "Register a new user. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Register"
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "description": "Reset password with token. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "new_password": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Reset password"
+      }
+    },
+    "/auth/send-otp": {
+      "post": {
+        "description": "Send OTP. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Send OTP"
+      }
+    },
+    "/auth/verify-2fa": {
+      "post": {
+        "description": "Verify 2FA code. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Verify 2FA"
+      }
+    },
+    "/auth/verify-otp": {
+      "post": {
+        "description": "Verify OTP. Stub.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "phone": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Verify OTP"
       }
     },
     "/health": {
       "get": {
-        "summary": "Health check",
         "description": "Returns overall service health status.",
         "responses": {
           "200": {
-            "description": "Service is healthy",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
                 }
               }
-            }
+            },
+            "description": "Service is healthy"
           }
-        }
+        },
+        "summary": "Health check"
       }
     },
     "/livez": {
       "get": {
-        "summary": "Liveness probe",
         "description": "Liveness probe handled by Fiber healthcheck middleware.",
         "responses": {
           "200": {
@@ -53,12 +429,30 @@
           "503": {
             "description": "Application is not alive"
           }
-        }
+        },
+        "summary": "Liveness probe"
+      }
+    },
+    "/monitor": {
+      "get": {
+        "description": "HTML dashboard with process and system metrics, provided by Fiber monitor middleware.",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Metrics dashboard HTML"
+          }
+        },
+        "summary": "Metrics dashboard"
       }
     },
     "/readyz": {
       "get": {
-        "summary": "Readiness probe",
         "description": "Readiness probe handled by Fiber healthcheck middleware.",
         "responses": {
           "200": {
@@ -67,243 +461,32 @@
           "503": {
             "description": "Application is not ready to serve traffic"
           }
-        }
+        },
+        "summary": "Readiness probe"
       }
     },
-    "/monitor": {
+    "/vendor/dashboard": {
       "get": {
-        "summary": "Metrics dashboard",
-        "description": "HTML dashboard with process and system metrics, provided by Fiber monitor middleware.",
+        "description": "Get the vendor dashboard information.",
         "responses": {
           "200": {
-            "description": "Metrics dashboard HTML",
             "content": {
-              "text/html": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "properties": {
+                    "data": {
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
                 }
               }
-            }
-          }
-        }
-      }
-    },
-    "/auth/register": {
-      "post": {
-        "summary": "Register",
-        "description": "Register a new user. Stub.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
-            }
+            },
+            "description": "Dashboard data"
           }
         },
-        "responses": { "201": { "description": "Created" }, "400": { "description": "Validation error" } }
-      }
-    },
-    "/auth/login": {
-      "post": {
-        "summary": "Login",
-        "description": "Authenticate; demo user@example.com / password.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/LoginRequest" }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" }, "401": { "description": "Invalid credentials" } }
-      }
-    },
-    "/auth/forgot-password": {
-      "post": {
-        "summary": "Forgot password",
-        "description": "Request password reset. Stub.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "email": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/reset-password": {
-      "post": {
-        "summary": "Reset password",
-        "description": "Reset password with token. Stub.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "token": { "type": "string" }, "new_password": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/send-otp": {
-      "post": {
-        "summary": "Send OTP",
-        "description": "Send OTP. Stub.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "phone": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/verify-otp": {
-      "post": {
-        "summary": "Verify OTP",
-        "description": "Verify OTP. Stub.",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "phone": { "type": "string" }, "code": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/logout": {
-      "post": {
-        "summary": "Logout",
-        "description": "Clear auth state. Requires Bearer token.",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/refresh": {
-      "post": {
-        "summary": "Refresh tokens",
-        "description": "Issue new access and refresh tokens.",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "refresh_token": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" }, "401": { "description": "Invalid refresh token" } }
-      }
-    },
-    "/auth/me": {
-      "get": {
-        "summary": "Current user",
-        "description": "Return authenticated user. Requires Bearer token.",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
-      }
-    },
-    "/auth/enable-2fa": {
-      "post": {
-        "summary": "Enable 2FA",
-        "description": "Start 2FA setup. Stub.",
-        "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "OK" } }
-      }
-    },
-    "/auth/verify-2fa": {
-      "post": {
-        "summary": "Verify 2FA",
-        "description": "Verify 2FA code. Stub.",
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": { "type": "object", "properties": { "code": { "type": "string" } } }
-            }
-          }
-        },
-        "responses": { "200": { "description": "OK" } }
-      }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
-      }
-    },
-    "schemas": {
-      "RootResponse": {
-        "type": "object",
-        "properties": {
-          "message": {
-            "type": "string",
-            "example": "Mithril Rev API"
-          },
-          "version": {
-            "type": "string",
-            "example": "1.0.0"
-          }
-        }
-      },
-      "HealthResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "example": "ok"
-          }
-        }
-      },
-      "RegisterRequest": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "string" },
-          "password": { "type": "string" },
-          "first_name": { "type": "string" },
-          "last_name": { "type": "string" }
-        }
-      },
-      "LoginRequest": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "string" },
-          "password": { "type": "string" },
-          "remember": { "type": "boolean" }
-        }
-      },
-      "LoginResponse": {
-        "type": "object",
-        "properties": {
-          "success": { "type": "boolean" },
-          "message": { "type": "string" },
-          "data": {
-            "type": "object",
-            "properties": {
-              "user": { "type": "object" },
-              "tokens": { "type": "object" }
-            }
-          }
-        }
-      },
-      "MeResponse": {
-        "type": "object",
-        "properties": {
-          "success": { "type": "boolean" },
-          "data": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "email": { "type": "string" },
-              "roles": { "type": "array", "items": { "type": "string" } }
-            }
-          }
-        }
+        "summary": "Vendor dashboard"
       }
     }
   }
 }
-
