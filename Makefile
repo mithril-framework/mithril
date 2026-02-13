@@ -1,11 +1,11 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger secret migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
 	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install dependencies
 	go mod tidy
@@ -115,6 +115,25 @@ secret: ## Generate a new JWT_SECRET and update .env
 	  echo "JWT_SECRET=$$SECRET" >> .env; \
 	fi; \
 	echo "Updated JWT_SECRET in .env"
+
+hash: ## Hash password with bcrypt (e.g. make hash 123)
+	@go run ./cmd/util hash '$(filter-out $@,$(MAKECMDGOALS))'
+
+sha256: ## SHA-256 checksum (e.g. make sha256 hello)
+	@go run ./cmd/util sha256 '$(filter-out $@,$(MAKECMDGOALS))'
+
+sha512: ## SHA-512 checksum (e.g. make sha512 hello)
+	@go run ./cmd/util sha512 '$(filter-out $@,$(MAKECMDGOALS))'
+
+encode: ## Base64-encode (e.g. make encode hello)
+	@go run ./cmd/util encode '$(filter-out $@,$(MAKECMDGOALS))'
+
+decode: ## Base64-decode (e.g. make decode hello  or  make decode S='aGVsbG8=')
+	@if [ -n "$$S" ]; then S="$$S" go run ./cmd/util decode; else go run ./cmd/util decode '$(filter-out $@,$(MAKECMDGOALS))'; fi
+
+# Absorb extra goals so "make hash 123" does not try to build target "123"
+%:
+	@true
 
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
