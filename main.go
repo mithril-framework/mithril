@@ -7,12 +7,11 @@ import (
 	"log"
 	"os"
 	"strings"
-	"time"
 
 	"mithril-rev/database/repositories"
 	"mithril-rev/internal/auth"
 	"mithril-rev/internal/db"
-	"mithril-rev/internal/vendor"
+	"mithril-rev/routes"
 
 	"github.com/bytedance/sonic"
 	jwtware "github.com/gofiber/contrib/jwt"
@@ -24,7 +23,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/healthcheck"
 	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -121,31 +119,6 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		}))
 	}
 
-	app.Static("/static", "./public/static")
-
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"message": "Mithril Rev API",
-			"version": "1.0.0",
-		})
-	})
-
-	app.Get("/health", func(c *fiber.Ctx) error {
-		status := fiber.Map{"status": "ok"}
-		if pool != nil {
-			if err := pool.Ping(c.Context()); err != nil {
-				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "unhealthy", "database": err.Error()})
-			}
-			status["database"] = "connected"
-		}
-		return c.JSON(status)
-	})
-
-	app.Get("/monitor", monitor.New(monitor.Config{
-		Title:   getEnv("APP_NAME", "mithril-rev") + " Monitor",
-		Refresh: 3 * time.Second,
-	}))
-
 	jwtConfig := jwtware.Config{
 		SigningKey: jwtware.SigningKey{Key: []byte(jwtSecret)},
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -153,24 +126,9 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		},
 	}
 
-	authHandlers := auth.NewHandlers(userRepo, jwtSecret)
-	authGroup := app.Group("/auth")
-	authGroup.Post("/register", authHandlers.Register)
-	authGroup.Post("/login", authHandlers.Login)
-	authGroup.Post("/forgot-password", authHandlers.ForgotPassword)
-	authGroup.Post("/reset-password", authHandlers.ResetPassword)
-	authGroup.Post("/send-otp", authHandlers.SendOTP)
-	authGroup.Post("/verify-otp", authHandlers.VerifyOTP)
-
-	authGroup.Use(jwtware.New(jwtConfig))
-	authGroup.Post("/logout", authHandlers.Logout)
-	authGroup.Post("/refresh", authHandlers.Refresh)
-	authGroup.Get("/me", authHandlers.Me)
-	authGroup.Post("/enable-2fa", authHandlers.Enable2FA)
-	authGroup.Post("/verify-2fa", authHandlers.Verify2FA)
-
-	vendorGroup := app.Group("/vendor")
-	vendorGroup.Get("/dashboard", vendor.Dashboard(pool))
+	routes.SetupWebRoutes(app, pool)
+	routes.SetupAuthRoutes(app, auth.NewHandlers(userRepo, jwtSecret), jwtConfig)
+	routes.SetupVendorRoutes(app, pool)
 
 	return app
 }
