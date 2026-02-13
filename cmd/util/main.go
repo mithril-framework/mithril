@@ -32,20 +32,20 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Print(out)
+		fmt.Println(out)
 	case "sha256":
-		fmt.Print(utils.SHA256(s))
+		fmt.Println(utils.SHA256(s))
 	case "sha512":
-		fmt.Print(utils.SHA512(s))
+		fmt.Println(utils.SHA512(s))
 	case "encode":
-		fmt.Print(utils.EncodeBase64(s))
+		fmt.Println(utils.EncodeBase64(s))
 	case "decode":
 		out, err := utils.DecodeBase64(s)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Print(out)
+		fmt.Println(out)
 	default:
 		fmt.Fprintln(os.Stderr, "Usage: hash|sha256|sha512|encode|decode")
 		os.Exit(1)
