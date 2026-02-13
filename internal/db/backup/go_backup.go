@@ -3,6 +3,7 @@ package backup
 import (
 	"compress/gzip"
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,6 +209,16 @@ func formatCopyValue(v any) string {
 	case time.Time:
 		return x.Format("2006-01-02 15:04:05.999999-07:00")
 	default:
+		if valuer, ok := v.(driver.Valuer); ok {
+			if val, err := valuer.Value(); err == nil && val != nil {
+				switch cv := val.(type) {
+				case string:
+					return formatCopyEscaped(cv)
+				case []byte:
+					return formatCopyEscaped(string(cv))
+				}
+			}
+		}
 		return formatCopyEscaped(fmt.Sprint(x))
 	}
 }

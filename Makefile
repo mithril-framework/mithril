@@ -87,13 +87,13 @@ backup: ## Create database backup (compressed SQL in database/backups). Uses pg_
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	go run ./cmd/backup backup
 
-restore: ## Restore from backup. Usage: make restore FILE=path/to/backup.sql.gz or make restore FILE=latest
+restore: ## Restore from backup. make restore (latest) or make restore f=path/to/backup.sql.gz
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
 	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
 	fi; \
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	go run ./cmd/backup restore -file "$${FILE:-latest}" -force
+	go run ./cmd/backup restore -file "$${f:-latest}" -force
 
 backup-list: ## List backups in database/backups
 	@go run ./cmd/backup list

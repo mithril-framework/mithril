@@ -5,7 +5,8 @@ Full PostgreSQL backup and restore with no Postgres CLI required on the host: th
 ## Commands
 
 - **`make backup`** – Create a compressed SQL backup in `database/backups/` (uses `DATABASE_URL` or `DB_*` from `.env`).
-- **`make restore FILE=path/to/backup.sql.gz`** or **`make restore FILE=latest`** – Restore from a file or the latest backup.
+- **`make restore`** – Restore from the latest backup.
+- **`make restore f=path/to/backup.sql.gz`** – Restore from a specific backup file.
 - **`make backup-list`** – List backups in `database/backups/`.
 
 ## CLI
