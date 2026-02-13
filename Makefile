@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -78,6 +78,25 @@ migrate-reset: ## Clear migration history and re-run all migrations (requires ps
 	echo "Clearing goose_db_version and re-running migrations..."; \
 	psql "$$DATABASE_URL" -c "DELETE FROM goose_db_version;" && \
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
+
+backup: ## Create database backup (compressed SQL in database/backups). Uses pg_dump, Docker, or Go.
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
+	go run ./cmd/backup backup
+
+restore: ## Restore from backup. Usage: make restore FILE=path/to/backup.sql.gz or make restore FILE=latest
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
+	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
+	fi; \
+	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
+	go run ./cmd/backup restore -file "$${FILE:-latest}" -force
+
+backup-list: ## List backups in database/backups
+	@go run ./cmd/backup list
 
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.

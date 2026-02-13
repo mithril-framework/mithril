@@ -5,3 +5,8 @@ bin/
 *.exe
 coverage.out
 coverage.html
+
+# Database backup artifacts (directory kept via database/backups/.gitkeep)
+database/backups/*.sql
+database/backups/*.sql.gz
+database/backups/*.dump
