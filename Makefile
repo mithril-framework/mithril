@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build test clean migrate-up migrate-down migrate-status migrate-reset seed install-tools
+.PHONY: help install run run-air build build-linux test clean docker-build migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -23,9 +23,13 @@ build: ## Build the application
 	@echo "Building application..."
 	go build -o bin/app .
 
-build-linux: ## Build the application
+build-linux: ## Build the application for Linux
 	@echo "Building application..."
 	GOOS=linux GOARCH=amd64 go build -o bin/app-linux .
+
+docker-build: ## Build Docker image (tag: $(APP_NAME):latest)
+	@echo "Building Docker image $(APP_NAME):latest..."
+	docker build -t $(APP_NAME):latest .
 
 test: ## Run tests
 	@echo "Running tests..."

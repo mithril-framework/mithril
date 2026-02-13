@@ -7,6 +7,9 @@ WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates tzdata
 
+# Bypass proxy when it returns 403 (e.g. in some Docker/network environments)
+ENV GOPROXY=direct
+
 COPY go.mod go.sum ./
 RUN go mod download
 
