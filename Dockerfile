@@ -1,0 +1,35 @@
+# Multi-stage Dockerfile for mithril-rev
+
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /app/binary .
+
+# Final stage
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+WORKDIR /app
+COPY --from=builder /app/binary ./app
+
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget -q -O- http://localhost:4000/health || exit 1
+
+CMD ["./app"]

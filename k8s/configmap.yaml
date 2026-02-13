@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mithril-rev-config
+  namespace: mithril-rev
+data:
+  APP_NAME: "mithril-rev"
+  PORT: "4000"
+  # Add non-sensitive env vars here. Override in deployment if needed.

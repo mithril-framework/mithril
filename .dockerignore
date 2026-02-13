@@ -1,0 +1,12 @@
+.git
+.github
+old
+bin
+tmp
+*.md
+.env
+.env.*
+!env.example
+*.json
+!docs/swagger.json
+.DS_Store

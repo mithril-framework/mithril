@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mithril-rev
+  namespace: mithril-rev
+  labels:
+    app: mithril-rev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mithril-rev
+  template:
+    metadata:
+      labels:
+        app: mithril-rev
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/REPO_OWNER/mithril-rev:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: mithril-rev-config
+            - secretRef:
+                name: mithril-rev-secret
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
