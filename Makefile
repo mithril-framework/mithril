@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger secret migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -105,6 +105,16 @@ swagger: ## Regenerate OpenAPI schema from route files via OpenAI (OPENAI_API_KE
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	test -n "$$OPENAI_API_KEY" || { echo "Set OPENAI_API_KEY in .env"; exit 1; }; \
 	go run ./cmd/swagger
+
+secret: ## Generate a new JWT_SECRET and update .env
+	@[ -f .env ] || { echo "Create .env first (e.g. copy from .env.sample)"; exit 1; }; \
+	SECRET=$$(openssl rand -base64 32 | tr -d '\n'); \
+	if grep -q '^JWT_SECRET=' .env 2>/dev/null; then \
+	  sed "s|^JWT_SECRET=.*|JWT_SECRET=$$SECRET|" .env > .env.tmp && mv .env.tmp .env; \
+	else \
+	  echo "JWT_SECRET=$$SECRET" >> .env; \
+	fi; \
+	echo "Updated JWT_SECRET in .env"
 
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
