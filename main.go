@@ -126,6 +126,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		},
 	}
 
+	routes.SetupCoreRoutes(app, pool)
 	routes.SetupWebRoutes(app, pool)
 	routes.SetupAuthRoutes(app, auth.NewHandlers(userRepo, jwtSecret), jwtConfig)
 	routes.SetupVendorRoutes(app, pool)
