@@ -119,7 +119,8 @@ func getTableDDL(ctx context.Context, pool *pgxpool.Pool, table string) (string,
 	defer rows.Close()
 	var parts []string
 	for rows.Next() {
-		var name, dataType, def, nullable string
+		var name, dataType, nullable string
+		var def *string
 		var maxLen *int
 		if err := rows.Scan(&name, &dataType, &def, &nullable, &maxLen); err != nil {
 			return "", err
@@ -131,8 +132,8 @@ func getTableDDL(ctx context.Context, pool *pgxpool.Pool, table string) (string,
 		if strings.ToLower(nullable) == "no" {
 			col += " NOT NULL"
 		}
-		if def != "" && def != "NULL" {
-			col += " DEFAULT " + def
+		if def != nil && *def != "" && *def != "NULL" {
+			col += " DEFAULT " + *def
 		}
 		parts = append(parts, col)
 	}
