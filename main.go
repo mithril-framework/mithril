@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -36,6 +37,12 @@ func main() {
 	// Seed is manual-only via "make seed". Do not run seed from this process or on reload.
 	loadEnvFile(".env")
 
+	if os.Getenv("LIST_ROUTES") == "1" {
+		app := setupApp(nil, nil, getEnv("JWT_SECRET", ""))
+		printRoutes(app)
+		os.Exit(0)
+	}
+
 	ctx := context.Background()
 	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {
 		dsn := db.DSNFromEnv()
@@ -52,6 +59,16 @@ func main() {
 		log.Println("Database connected")
 	}
 
+	jwtSecret := getEnv("JWT_SECRET", "secret")
+	app := setupApp(dbPool, userRepo, jwtSecret)
+	port := getEnv("PORT", "4000")
+	log.Printf("Starting server on port %s", port)
+	log.Fatal(app.Listen(":" + port))
+}
+
+// setupApp creates the Fiber app and registers all middleware and routes.
+// pool and userRepo may be nil when listing routes (LIST_ROUTES=1).
+func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecret string) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:     getEnv("APP_NAME", "mithril-rev"),
 		JSONEncoder: sonic.Marshal,
@@ -100,7 +117,7 @@ func main() {
 			FilePath: "./docs/swagger.json",
 			Path:     "docs",
 			Title:    "Mithril Rev API",
-			CacheAge: 0, // no cache so doc updates show after restart
+			CacheAge: 0,
 		}))
 	}
 
@@ -111,13 +128,12 @@ func main() {
 			"message": "Mithril Rev API",
 			"version": "1.0.0",
 		})
-
 	})
 
 	app.Get("/health", func(c *fiber.Ctx) error {
 		status := fiber.Map{"status": "ok"}
-		if dbPool != nil {
-			if err := dbPool.Ping(c.Context()); err != nil {
+		if pool != nil {
+			if err := pool.Ping(c.Context()); err != nil {
 				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "unhealthy", "database": err.Error()})
 			}
 			status["database"] = "connected"
@@ -130,7 +146,6 @@ func main() {
 		Refresh: 3 * time.Second,
 	}))
 
-	jwtSecret := getEnv("JWT_SECRET", "secret")
 	jwtConfig := jwtware.Config{
 		SigningKey: jwtware.SigningKey{Key: []byte(jwtSecret)},
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -155,11 +170,19 @@ func main() {
 	authGroup.Post("/verify-2fa", authHandlers.Verify2FA)
 
 	vendorGroup := app.Group("/vendor")
-	vendorGroup.Get("/dashboard", vendor.Dashboard(dbPool))
+	vendorGroup.Get("/dashboard", vendor.Dashboard(pool))
 
-	port := getEnv("PORT", "4000")
-	log.Printf("Starting server on port %s", port)
-	log.Fatal(app.Listen(":" + port))
+	return app
+}
+
+// printRoutes prints all registered routes (method, path, name) to stdout.
+func printRoutes(app *fiber.App) {
+	routes := app.GetRoutes(true)
+	fmt.Printf("%-8s %-40s %s\n", "METHOD", "PATH", "NAME")
+	fmt.Println(strings.Repeat("-", 80))
+	for _, r := range routes {
+		fmt.Printf("%-8s %-40s %s\n", r.Method, r.Path, r.Name)
+	}
 }
 
 func getEnv(key, defaultValue string) string {

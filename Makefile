@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -97,6 +97,9 @@ restore: ## Restore from backup. make restore (latest) or make restore f=path/to
 
 backup-list: ## List backups in database/backups
 	@go run ./cmd/backup list
+
+routes: ## List all registered routes (no server start)
+	@[ -f .env ] && set -a && . ./.env && set +a; LIST_ROUTES=1 go run .
 
 # Seed is manual-only. Do not call from run/run-air or any automatic step.
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
