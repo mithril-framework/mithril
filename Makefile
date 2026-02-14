@@ -31,7 +31,7 @@ docker-build: ## Build Docker image (tag: $(APP_NAME):latest)
 	@echo "Building Docker image $(APP_NAME):latest..."
 	docker build -t $(APP_NAME):latest .
 
-DC_FILE := docker-compose.services.yml
+DC_FILE := infrastructure/docker-compose.services.yml
 # Per-service: make dc CMD=install SVC=postgres  or  make dc-install-postgres
 CMD ?=
 SVC ?=

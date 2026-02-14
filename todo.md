@@ -1,1 +1,14 @@
 - is gzip enabled for real ?
+- rbac
+- csrf
+- template
+- admin
+- cms like strapi
+- ws
+- microservices
+- deployment
+- cli
+- crud generator
+- cqrs
+- sentry
+- otel

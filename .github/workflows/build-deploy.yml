@@ -84,12 +84,12 @@ jobs:
       - name: Apply Kubernetes manifests
         run: |
           export IMAGE=${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
-          sed -i "s|ghcr.io/REPO_OWNER/mithril-rev:latest|${IMAGE}|g" k8s/deployment.yaml
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secret.yaml
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
+          sed -i "s|ghcr.io/REPO_OWNER/mithril-rev:latest|${IMAGE}|g" infrastructure/k8s/deployment.yaml
+          kubectl apply -f infrastructure/k8s/namespace.yaml
+          kubectl apply -f infrastructure/k8s/configmap.yaml
+          kubectl apply -f infrastructure/k8s/secret.yaml
+          kubectl apply -f infrastructure/k8s/deployment.yaml
+          kubectl apply -f infrastructure/k8s/service.yaml
 
       - name: Rollout status
         run: |
