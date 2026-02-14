@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+# mithril: run make from the repo root.
+# Use ./mithril run (from repo root) so this script is used, not another 'mithril' on PATH.
+# From anywhere: symlink this file into PATH, e.g. ln -s /path/to/mithril-rev/mithril /usr/local/bin/mithril-rev
+
+script="$0"
+while [ -L "$script" ]; do
+  target=$(readlink "$script")
+  case "$target" in
+    /*) script="$target" ;;
+    *) script="$(dirname "$script")/$target" ;;
+  esac
+done
+root=$(cd "$(dirname "$script")" && pwd)
+cd "$root" && exec make "$@"

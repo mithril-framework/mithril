@@ -1,11 +1,14 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help init install run run-air build build-linux test clean docker-build dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
 	@echo "Available commands:"
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+init: ## Symlink mithril to /usr/local/bin so you can run mithril from anywhere
+	@ln -sf "$(CURDIR)/mithril" /usr/local/bin/mithril || (echo "Run: sudo ln -sf $(CURDIR)/mithril /usr/local/bin/mithril"; exit 1)
 
 install: ## Install dependencies
 	go mod tidy
