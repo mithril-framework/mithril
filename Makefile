@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help install run run-air build build-linux test clean docker-build backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help install run run-air build build-linux test clean docker-build dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -30,6 +30,64 @@ build-linux: ## Build the application for Linux
 docker-build: ## Build Docker image (tag: $(APP_NAME):latest)
 	@echo "Building Docker image $(APP_NAME):latest..."
 	docker build -t $(APP_NAME):latest .
+
+DC_FILE := docker-compose.services.yml
+# Per-service: make dc CMD=install SVC=postgres  or  make dc-install-postgres
+CMD ?=
+SVC ?=
+
+dc: ## Per-service: make dc CMD=install SVC=postgres  (CMD: install|up|start|stop|restart|logs|shell)
+	@cmd="$(CMD)"; svc="$(SVC)"; \
+	if [ -z "$$svc" ]; then echo "Usage: make dc CMD=install|up|start|stop|restart|logs|shell SVC=postgres|pgadmin|adminer|redis|rabbitmq|kafka"; exit 1; fi; \
+	case "$$cmd" in \
+	  install) docker compose -f $(DC_FILE) pull $$svc ;; \
+	  up) docker compose -f $(DC_FILE) up -d $$svc ;; \
+	  start) docker compose -f $(DC_FILE) start $$svc ;; \
+	  stop) docker compose -f $(DC_FILE) stop $$svc ;; \
+	  restart) docker compose -f $(DC_FILE) restart $$svc ;; \
+	  logs) docker compose -f $(DC_FILE) logs -f $$svc ;; \
+	  shell) \
+	    if [ "$$svc" = "postgres" ]; then docker compose -f $(DC_FILE) exec postgres psql -U postgres; \
+	    else docker compose -f $(DC_FILE) exec $$svc sh; fi ;; \
+	  *) echo "Usage: make dc CMD=install|up|start|stop|restart|logs|shell SVC=<service>"; exit 1 ;; \
+	esac
+
+# Per-service shortcuts: make dc-install-postgres, make dc-up-postgres, make dc-start-postgres, etc.
+dc-install-%:
+	@$(MAKE) dc CMD=install SVC=$*
+
+dc-up-%:
+	@$(MAKE) dc CMD=up SVC=$*
+
+dc-start-%:
+	@$(MAKE) dc CMD=start SVC=$*
+
+dc-stop-%:
+	@$(MAKE) dc CMD=stop SVC=$*
+
+dc-restart-%:
+	@$(MAKE) dc CMD=restart SVC=$*
+
+dc-logs-%:
+	@$(MAKE) dc CMD=logs SVC=$*
+
+dc-shell-%:
+	@$(MAKE) dc CMD=shell SVC=$*
+
+dc-run: ## Start all dev containers in background
+	docker compose -f $(DC_FILE) up -d
+
+dc-stop: ## Stop all dev containers
+	docker compose -f $(DC_FILE) stop
+
+dc-start: ## Start all stopped dev containers
+	docker compose -f $(DC_FILE) start
+
+dc-down: ## Stop and remove dev containers (keeps volumes)
+	docker compose -f $(DC_FILE) down
+
+dc-logs: ## Follow all dev containers logs
+	docker compose -f $(DC_FILE) logs -f
 
 test: ## Run tests
 	@echo "Running tests..."
