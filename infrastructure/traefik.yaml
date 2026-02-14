@@ -1,0 +1,18 @@
+entryPoints:
+  websecure:
+    address: ":443"
+
+http:
+  routers:
+    app:
+      rule: "Host(`example.com`)"
+      entryPoints:
+        - websecure
+      service: app
+      tls: {}
+
+  services:
+    app:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:3000"
