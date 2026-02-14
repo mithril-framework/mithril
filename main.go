@@ -23,6 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
+	"github.com/gofiber/template/jet/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -65,8 +66,12 @@ func main() {
 // setupApp creates the Fiber app and registers all middleware and routes.
 // pool and userRepo may be nil when listing routes (LIST_ROUTES=1).
 func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecret string) *fiber.App {
+	engine := jet.New("./views", ".jet")
+	engine.Reload(true) // reload templates in development
+
 	app := fiber.New(fiber.Config{
 		AppName:     getEnv("APP_NAME", "mithril-rev"),
+		Views:       engine,
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {

@@ -8,6 +8,12 @@ import (
 // SetupWebRoutes registers routes for web pages (HTML/templates).
 // Add page routes here as they are implemented.
 func SetupWebRoutes(app *fiber.App, pool *pgxpool.Pool) {
-	// Web page routes go here
 	_ = pool
+
+	app.Get("/html", func(c *fiber.Ctx) error {
+		return c.Render("demo", fiber.Map{
+			"Title":   "HTML Demo",
+			"Message": "Hello from Jet",
+		})
+	})
 }
