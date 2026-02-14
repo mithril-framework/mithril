@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-air build build-linux test clean docker-build crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -37,6 +37,10 @@ build-linux: ## Build the application for Linux
 docker-build: ## Build Docker image (tag: $(APP_NAME):latest)
 	@echo "Building Docker image $(APP_NAME):latest..."
 	docker build -t $(APP_NAME):latest .
+
+docker-run: docker-build ## Build Docker image and run container (port 4000)
+	@echo "Running $(APP_NAME):latest..."
+	docker run --rm -p 4000:4000 $(APP_NAME):latest
 
 DC_FILE := infrastructure/docker-compose.services.yml
 # Per-service: make dc CMD=install SVC=postgres  or  make dc-install-postgres
