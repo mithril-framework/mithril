@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 	defaultModel  = "gpt-4o-mini"
 	routesDir     = "routes"
 	swaggerPath   = "docs/swagger.json"
-	systemPrompt  = "You are an OpenAPI 3.0 schema generator. Given Go Fiber route files and the current OpenAPI schema (and any git diff), produce a single complete, valid OpenAPI 3.0 JSON document. Preserve existing paths and components unless the route files or diff indicate changes. Output only the raw JSON document, no markdown code fences, no explanation, no commentary."
+	systemPrompt  = "You are an OpenAPI 3.0 schema generator. This app is a Go Fiber app: routes live in routes/*.go and are registered via RegisterAll (e.g. SetupCrudBlogRoutes, SetupAuthRoutes). API routes are under app.Group(\"/api\") (e.g. /api/blogs, /api/users, /api/auth/...). CRUD uses GET list, GET :id, POST, PUT :id, DELETE :id. Given the route files and current OpenAPI schema (and any git diff), produce a single complete, valid OpenAPI 3.0 JSON document. Preserve existing paths and components unless the route files or diff indicate changes. Your response MUST be strict JSON only: a single JSON object, every key in double quotes (e.g. \"description\": not description:), no markdown code fences, no trailing commas, no comments, no explanation."
 )
 
 func main() {
@@ -51,10 +53,15 @@ func main() {
 	diffRoutes := runGitDiff(routesDir)
 	diffSwagger := runGitDiff(swaggerPath)
 
-	userParts := []string{
-		"=== Route files (routes/*.go) ===\n" + routesContent,
-		"\n=== Current docs/swagger.json ===\n" + string(swaggerContent),
+	routeSummary := buildRouteSummary(routesContent)
+	userParts := []string{}
+	if routeSummary != "" {
+		userParts = append(userParts, "=== Paths to document ===\n"+routeSummary+"\n\n")
 	}
+	userParts = append(userParts,
+		"=== Route files (routes/*.go) ===\n"+routesContent,
+		"\n=== Current docs/swagger.json ===\n"+string(swaggerContent),
+	)
 	if diffRoutes != "" {
 		userParts = append(userParts, "\n=== Git diff of routes/ ===\n"+diffRoutes)
 	}
@@ -116,10 +123,44 @@ func main() {
 
 	raw := strings.TrimSpace(openAIResp.Choices[0].Message.Content)
 	raw = stripMarkdownCodeFence(raw)
+	toParse := fixUnquotedKeys(raw)
 
 	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		fmt.Fprintf(os.Stderr, "invalid json from model: %v\n", err)
+	if err := json.Unmarshal([]byte(toParse), &doc); err != nil {
+		snippet := toParse
+		if syntaxErr, ok := err.(*json.SyntaxError); ok {
+			offset := int(syntaxErr.Offset)
+			if offset >= 0 && offset <= len(toParse) {
+				const window = 80
+				start := offset - window
+				if start < 0 {
+					start = 0
+				}
+				end := offset + window
+				if end > len(toParse) {
+					end = len(toParse)
+				}
+				snippet = toParse[start:end]
+				if start > 0 {
+					snippet = "..." + snippet
+				}
+				if end < len(toParse) {
+					snippet = snippet + "..."
+				}
+				fmt.Fprintf(os.Stderr, "invalid json from model: %v (offset %d)\nsnippet around error: %s\n", err, offset, snippet)
+			} else {
+				fallback := toParse
+				if len(fallback) > 200 {
+					fallback = fallback[:200] + "..."
+				}
+				fmt.Fprintf(os.Stderr, "invalid json from model: %v\nraw snippet: %s\n", err, fallback)
+			}
+		} else {
+			if len(snippet) > 200 {
+				snippet = snippet[:200] + "..."
+			}
+			fmt.Fprintf(os.Stderr, "invalid json from model: %v\nraw snippet: %s\n", err, snippet)
+		}
 		os.Exit(1)
 	}
 	if _, ok := doc["openapi"]; !ok {
@@ -228,18 +269,190 @@ func runGitDiff(path string) string {
 	return string(out)
 }
 
+// pathMethodRe matches .Get("/path", .Post("/path", etc. Captures method and path.
+var pathMethodRe = regexp.MustCompile(`\.(Get|Post|Put|Delete|Patch)\(\s*"([^"]+)"`)
+
+func buildRouteSummary(routesContent string) string {
+	useAPIBase := strings.Contains(routesContent, `Group("/api")`)
+	matches := pathMethodRe.FindAllStringSubmatch(routesContent, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	seen := make(map[string]bool)
+	var lines []string
+	for _, m := range matches {
+		if len(m) != 3 {
+			continue
+		}
+		method := strings.ToUpper(m[1])
+		path := m[2]
+		if useAPIBase && !strings.HasPrefix(path, "/api") {
+			path = "/api" + path
+		}
+		key := method + " " + path
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		lines = append(lines, method+" "+path)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "Paths to document: " + strings.Join(lines, ", ")
+}
+
 var markdownFence = regexp.MustCompile("(?s)^\\s*```(?:json)?\\s*\\n(.*?)\\n\\s*```\\s*$")
 
 func stripMarkdownCodeFence(s string) string {
+	s = strings.TrimSpace(s)
 	if m := markdownFence.FindStringSubmatch(s); len(m) == 2 {
-		return strings.TrimSpace(m[1])
+		s = strings.TrimSpace(m[1])
+	} else {
+		if strings.HasPrefix(s, "```json") {
+			s = strings.TrimPrefix(s, "```json")
+		} else if strings.HasPrefix(s, "```") {
+			s = strings.TrimPrefix(s, "```")
+		}
+		s = strings.TrimSuffix(s, "```")
+		s = strings.TrimSpace(s)
 	}
-	// Try stripping a leading ```json or ``` and trailing ```
-	if strings.HasPrefix(s, "```json") {
-		s = strings.TrimPrefix(s, "```json")
-	} else if strings.HasPrefix(s, "```") {
-		s = strings.TrimPrefix(s, "```")
+	// Extract from first { to matching }; ignore trailing text or extra braces in prose
+	if idx := strings.Index(s, "{"); idx >= 0 {
+		s = s[idx:]
+		s = extractJSONObject(s)
 	}
-	s = strings.TrimSuffix(s, "```")
-	return strings.TrimSpace(s)
+	return s
+}
+
+// skipUnicodeSpace advances i past any runes where unicode.IsSpace is true, writing them to b. Returns the new index.
+func skipUnicodeSpace(s string, i int, b *strings.Builder) int {
+	for i < len(s) {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if size == 0 || !unicode.IsSpace(r) {
+			return i
+		}
+		b.WriteString(s[i : i+size])
+		i += size
+	}
+	return i
+}
+
+// fixUnquotedKeys returns a copy of s with unquoted object keys (e.g. description:) turned into quoted keys ("description":).
+func fixUnquotedKeys(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 512)
+	inString := false
+	escape := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escape {
+			b.WriteByte(c)
+			escape = false
+			continue
+		}
+		if inString {
+			b.WriteByte(c)
+			if c == '\\' {
+				escape = true
+			} else if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			b.WriteByte(c)
+			continue
+		}
+		if c == ',' || c == '{' {
+			b.WriteByte(c)
+			i++
+			i = skipUnicodeSpace(s, i, &b)
+			if i >= len(s) {
+				break
+			}
+			c = s[i]
+			if c == '"' {
+				i--
+				continue
+			}
+			if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
+				start := i
+				for i < len(s) {
+					cc := s[i]
+					if (cc >= 'a' && cc <= 'z') || (cc >= 'A' && cc <= 'Z') || (cc >= '0' && cc <= '9') || cc == '_' {
+						i++
+					} else {
+						break
+					}
+				}
+				ident := s[start:i]
+				i = skipUnicodeSpace(s, i, &b)
+				if i < len(s) && s[i] == ':' {
+					b.WriteByte('"')
+					b.WriteString(ident)
+					b.WriteByte('"')
+					b.WriteByte(':')
+					i++
+				} else if i < len(s) && s[i] == '"' {
+					b.WriteByte('"')
+					b.WriteString(ident)
+					b.WriteByte('"')
+					b.WriteByte(':')
+					i++
+					i = skipUnicodeSpace(s, i, &b)
+					if i < len(s) && s[i] == ':' {
+						i++
+					}
+				} else {
+					b.WriteString(ident)
+				}
+				i-- // for-loop will i++; we advanced i in this block so next char is at current i
+				continue
+			}
+			i-- // re-process this character (e.g. digit, true/false/null)
+			continue
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// extractJSONObject returns the first complete {...} object by brace matching.
+func extractJSONObject(s string) string {
+	depth := 0
+	inString := false
+	escape := false
+	quote := byte(0)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escape {
+			escape = false
+			continue
+		}
+		if inString {
+			if c == '\\' && quote == '"' {
+				escape = true
+				continue
+			}
+			if c == quote {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+			quote = c
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return s[:i+1]
+			}
+		}
+	}
+	return s
 }

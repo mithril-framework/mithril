@@ -135,6 +135,179 @@
         "summary": "Root welcome"
       }
     },
+    "/api/": {
+      "get": {
+        "description": "Returns API information.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "API welcome"
+      }
+    },
+    "/api/blogs": {
+      "get": {
+        "description": "Retrieve a list of blogs.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "List blogs"
+      },
+      "post": {
+        "description": "Create a new blog.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Create blog"
+      }
+    },
+    "/api/blogs/{id}": {
+      "delete": {
+        "description": "Delete a blog by its ID.",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Blog not found"
+          }
+        },
+        "summary": "Delete blog"
+      },
+      "get": {
+        "description": "Retrieve a blog by its ID.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Blog not found"
+          }
+        },
+        "summary": "Get blog"
+      },
+      "put": {
+        "description": "Update a blog by its ID.",
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "Blog not found"
+          }
+        },
+        "summary": "Update blog"
+      }
+    },
+    "/api/dashboard": {
+      "get": {
+        "description": "Get dashboard information.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "Dashboard info"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "Returns overall service health status.",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Service is healthy"
+          }
+        },
+        "summary": "Health check"
+      }
+    },
+    "/api/monitor": {
+      "get": {
+        "description": "Metrics dashboard.",
+        "responses": {
+          "200": {
+            "description": "Metrics dashboard"
+          }
+        },
+        "summary": "Metrics dashboard"
+      }
+    },
+    "/api/users": {
+      "get": {
+        "description": "Retrieve a list of users.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "List users"
+      },
+      "post": {
+        "description": "Create a new user.",
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        },
+        "summary": "Create user"
+      }
+    },
+    "/api/users/{id}": {
+      "delete": {
+        "description": "Delete a user by their ID.",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Delete user"
+      },
+      "get": {
+        "description": "Retrieve a user by their ID.",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Get user"
+      },
+      "put": {
+        "description": "Update a user by their ID.",
+        "responses": {
+          "200": {
+            "description": "Updated"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "summary": "Update user"
+      }
+    },
     "/auth/enable-2fa": {
       "post": {
         "description": "Start 2FA setup. Stub.",

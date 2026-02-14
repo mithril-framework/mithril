@@ -23,5 +23,6 @@ func RegisterAll(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories.User
 	SetupWebRoutes(app, pool)
 	SetupAuthRoutes(app, authHandlers, jwtConfig)
 	SetupVendorRoutes(app, pool)
+	SetupCrudBlogRoutes(app, pool)
 	SetupCrudUserRoutes(app, pool)
 }
