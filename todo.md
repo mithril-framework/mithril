@@ -12,3 +12,8 @@
 - cqrs
 - sentry
 - otel
+- ai assistant, mcp, skills, rules
+- ci/cd blue-green, zeo down time deployment
+- i18n, lang in header
+- ddos / attack protection
+- honeypot+ save data
