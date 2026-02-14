@@ -29,9 +29,6 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@local
       PGADMIN_DEFAULT_PASSWORD: admin
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - services_network
 
@@ -39,9 +36,6 @@ services:
     image: adminer:latest
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - services_network
 
