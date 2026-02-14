@@ -9,12 +9,10 @@ import (
 	"strings"
 
 	"mithril-rev/database/repositories"
-	"mithril-rev/internal/auth"
 	"mithril-rev/internal/db"
 	"mithril-rev/routes"
 
 	"github.com/bytedance/sonic"
-	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
@@ -119,18 +117,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		}))
 	}
 
-	jwtConfig := jwtware.Config{
-		SigningKey: jwtware.SigningKey{Key: []byte(jwtSecret)},
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized", "message": err.Error()})
-		},
-	}
-
-	routes.SetupCoreRoutes(app, pool)
-	routes.SetupWebRoutes(app, pool)
-	routes.SetupAuthRoutes(app, auth.NewHandlers(userRepo, jwtSecret), jwtConfig)
-	routes.SetupVendorRoutes(app, pool)
-
+	routes.RegisterAll(app, pool, userRepo, jwtSecret)
 	return app
 }
 

@@ -84,3 +84,22 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
 	return err
 }
+
+// List returns users with limit and offset.
+func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
+	query := `SELECT id, email, password_hash, first_name, last_name, is_active, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	rows, err := r.db.Query(ctx, query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []*models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FirstName, &u.LastName, &u.IsActive, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, &u)
+	}
+	return list, rows.Err()
+}

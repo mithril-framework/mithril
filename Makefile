@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-air build build-linux test clean docker-build dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help init install run run-air build build-linux test clean docker-build crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
 
 # Default target
 help: ## Show this help message
@@ -13,6 +13,10 @@ init: ## Symlink mithril to /usr/local/bin so you can run mithril from anywhere
 install: ## Install dependencies
 	go mod tidy
 	go mod download
+
+crud: ## Generate CRUD (repository, handlers, routes) from model. Usage: make crud MODEL=User
+	@test -n "$$MODEL" || (echo "Usage: make crud MODEL=User"; exit 1); \
+	go run ./cmd/crud "$$MODEL"
 
 run: ## Run the application
 	@echo "Starting application..."
