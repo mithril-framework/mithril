@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Mithril Rev</title>
+  <link rel="stylesheet" href="/admin/admin.css" />
+</head>
+<body>
+  <header class="top">
+    <h1>Admin</h1>
+    <p class="hint">Sign in via <code>POST /auth/login</code>, paste access token below. Requires superuser or <code>admin.access</code>.</p>
+  </header>
+
+  <section class="card">
+    <h2>Session</h2>
+    <label>Access token <input type="password" id="token" autocomplete="off" placeholder="Bearer token" /></label>
+    <button type="button" id="saveToken">Save to session</button>
+    <button type="button" id="clearToken">Clear</button>
+    <p id="sessionStatus" class="status"></p>
+  </section>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <main id="view"></main>
+
+  <template id="tpl-permissions">
+    <section class="card">
+      <h2>Permissions</h2>
+      <div class="row">
+        <input id="pCodename" placeholder="codename" />
+        <input id="pDesc" placeholder="description" />
+        <button type="button" id="pCreate">Create</button>
+      </div>
+      <ul id="pList" class="list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-roles">
+    <section class="card">
+      <h2>Roles</h2>
+      <div class="row">
+        <input id="rName" placeholder="name" />
+        <input id="rDesc" placeholder="description" />
+        <button type="button" id="rCreate">Create</button>
+      </div>
+      <ul id="rList" class="list"></ul>
+    </section>
+  </template>
+
+  <template id="tpl-assign">
+    <section class="card">
+      <h2>Assign / revoke</h2>
+      <fieldset>
+        <legend>Role ↔ user</legend>
+        <input id="aUserEmail" placeholder="user email" />
+        <input id="aRoleName" placeholder="role name" />
+        <button type="button" id="aRoleAssign">Assign role</button>
+        <button type="button" id="aRoleRevoke">Revoke role</button>
+      </fieldset>
+      <fieldset>
+        <legend>Permission ↔ role</legend>
+        <input id="apRole" placeholder="role name" />
+        <input id="apPerm" placeholder="permission codename" />
+        <button type="button" id="apAssign">Assign</button>
+        <button type="button" id="apRevoke">Revoke</button>
+      </fieldset>
+      <fieldset>
+        <legend>Permission ↔ user (direct)</legend>
+        <input id="upUser" placeholder="user email" />
+        <input id="upPerm" placeholder="permission codename" />
+        <button type="button" id="upAssign">Assign</button>
+        <button type="button" id="upRevoke">Revoke</button>
+      </fieldset>
+      <p id="assignMsg" class="status"></p>
+    </section>
+  </template>
+
+  <template id="tpl-users">
+    <section class="card">
+      <h2>Users</h2>
+      <button type="button" id="uReload">Reload list</button>
+      <ul id="uList" class="list"></ul>
+      <h3>Create user</h3>
+      <div class="grid">
+        <input id="uEmail" placeholder="email" />
+        <input id="uPass" type="password" placeholder="password" />
+        <input id="uFirst" placeholder="first name" />
+        <input id="uLast" placeholder="last name" />
+        <label><input type="checkbox" id="uActive" checked /> active</label>
+        <label><input type="checkbox" id="uSuper" /> superuser</label>
+        <button type="button" id="uCreate">Create</button>
+      </div>
+    </section>
+  </template>
+
+  <template id="tpl-blogs">
+    <section class="card">
+      <h2>Blogs</h2>
+      <button type="button" id="bReload">Reload list</button>
+      <ul id="bList" class="list"></ul>
+      <h3>Create blog</h3>
+      <div class="grid">
+        <input id="bTitle" placeholder="title" />
+        <textarea id="bContent" placeholder="content" rows="4"></textarea>
+        <input id="bAuthor" placeholder="author user id (uuid)" />
+        <label><input type="checkbox" id="bActive" checked /> active</label>
+        <button type="button" id="bCreate">Create</button>
+      </div>
+    </section>
+  </template>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

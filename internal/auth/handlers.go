@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
@@ -23,12 +24,13 @@ const bcryptCost = bcrypt.DefaultCost
 // Handlers holds dependencies for auth HTTP handlers.
 type Handlers struct {
 	UserRepo  *repositories.UserRepository
+	ACLRepo   *repositories.ACLRepository
 	JWTSecret string
 }
 
-// NewHandlers returns a new Handlers. UserRepo may be nil if DB is not configured.
-func NewHandlers(userRepo *repositories.UserRepository, jwtSecret string) *Handlers {
-	return &Handlers{UserRepo: userRepo, JWTSecret: jwtSecret}
+// NewHandlers returns a new Handlers. UserRepo may be nil if DB is not configured. ACLRepo may be nil.
+func NewHandlers(userRepo *repositories.UserRepository, aclRepo *repositories.ACLRepository, jwtSecret string) *Handlers {
+	return &Handlers{UserRepo: userRepo, ACLRepo: aclRepo, JWTSecret: jwtSecret}
 }
 
 // isRegisterEnabled returns true when ENABLE_REGISTER is a truthy value (true, 1, yes); false otherwise.
@@ -118,8 +120,13 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 	}
 	userID := user.ID.String()
 	roles := []string{"user"}
+	if h.ACLRepo != nil {
+		if names, err := h.ACLRepo.UserRoleNames(c.Context(), user.ID); err == nil && len(names) > 0 {
+			roles = names
+		}
+	}
 	sessionID := "session_" + fmt.Sprintf("%d", time.Now().Unix())
-	accessToken, refreshToken, expiresAt, err := h.issueTokenPair(userID, user.Email, roles, sessionID)
+	accessToken, refreshToken, expiresAt, err := h.issueTokenPair(userID, user.Email, roles, sessionID, user.IsSuperuser)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "token_error", "message": err.Error()})
 	}
@@ -130,10 +137,12 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 		"token_type":    "Bearer",
 	}
 	userData := fiber.Map{
-		"id":         userID,
-		"email":      user.Email,
-		"first_name": user.FirstName,
-		"last_name":  user.LastName,
+		"id":           userID,
+		"email":        user.Email,
+		"first_name":   user.FirstName,
+		"last_name":    user.LastName,
+		"is_superuser": user.IsSuperuser,
+		"roles":        roles,
 	}
 	if req.Remember {
 		c.Cookie(&fiber.Cookie{Name: "access_token", Value: accessToken, HTTPOnly: true, SameSite: "Lax", Expires: expiresAt})
@@ -221,6 +230,13 @@ func (h *Handlers) Refresh(c *fiber.Ctx) error {
 	userID, _ := claims["user_id"].(string)
 	email, _ := claims["email"].(string)
 	sessionID, _ := claims["session_id"].(string)
+	if userID == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "token_refresh_failed", "message": "invalid refresh token"})
+	}
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "token_refresh_failed", "message": "invalid refresh token"})
+	}
 	var roles []string
 	if r, ok := claims["roles"].([]interface{}); ok {
 		for _, v := range r {
@@ -229,10 +245,23 @@ func (h *Handlers) Refresh(c *fiber.Ctx) error {
 			}
 		}
 	}
+	isSuper := jwtClaimBool(claims, "is_superuser")
+	if h.UserRepo != nil {
+		u, err := h.UserRepo.GetByID(c.Context(), userUUID)
+		if err != nil {
+			return c.Status(401).JSON(fiber.Map{"error": "token_refresh_failed", "message": "user not found"})
+		}
+		isSuper = u.IsSuperuser
+		if h.ACLRepo != nil {
+			if names, err := h.ACLRepo.UserRoleNames(c.Context(), userUUID); err == nil && len(names) > 0 {
+				roles = names
+			}
+		}
+	}
 	if len(roles) == 0 {
 		roles = []string{"user"}
 	}
-	accessToken, refreshToken, expiresAt, err := h.issueTokenPair(userID, email, roles, sessionID)
+	accessToken, refreshToken, expiresAt, err := h.issueTokenPair(userID, email, roles, sessionID, isSuper)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "token_error", "message": err.Error()})
 	}
@@ -266,8 +295,26 @@ func (h *Handlers) Me(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{
 		"success": true,
-		"data":    fiber.Map{"id": userID, "email": email, "roles": roles},
+		"data": fiber.Map{
+			"id": userID, "email": email, "roles": roles,
+			"is_superuser": jwtClaimBool(claims, "is_superuser"),
+		},
 	})
+}
+
+func jwtClaimBool(claims jwt.MapClaims, key string) bool {
+	v, ok := claims[key]
+	if !ok {
+		return false
+	}
+	switch x := v.(type) {
+	case bool:
+		return x
+	case float64:
+		return x != 0
+	default:
+		return false
+	}
 }
 
 // Enable2FA handles POST /auth/enable-2fa.
@@ -294,17 +341,21 @@ func (h *Handlers) Verify2FA(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"success": true, "message": "2FA verified successfully"})
 }
 
-func (h *Handlers) issueTokenPair(userID, email string, roles []string, sessionID string) (accessToken, refreshToken string, expiresAt time.Time, err error) {
+// issueTokenPair signs access and refresh JWTs. Claims: user_id, email, roles ([]string),
+// session_id, is_superuser (bool), exp, type ("access"|"refresh").
+func (h *Handlers) issueTokenPair(userID, email string, roles []string, sessionID string, isSuperuser bool) (accessToken, refreshToken string, expiresAt time.Time, err error) {
 	now := time.Now()
 	accessExp := now.Add(24 * time.Hour)
 	refreshExp := now.Add(7 * 24 * time.Hour)
 	accessClaims := jwt.MapClaims{
 		"user_id": userID, "email": email, "roles": roles, "session_id": sessionID,
-		"exp": accessExp.Unix(), "type": "access",
+		"is_superuser": isSuperuser,
+		"exp":          accessExp.Unix(), "type": "access",
 	}
 	refreshClaims := jwt.MapClaims{
 		"user_id": userID, "email": email, "roles": roles, "session_id": sessionID,
-		"exp": refreshExp.Unix(), "type": "refresh",
+		"is_superuser": isSuperuser,
+		"exp":          refreshExp.Unix(), "type": "refresh",
 	}
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessToken, err = at.SignedString([]byte(h.JWTSecret))

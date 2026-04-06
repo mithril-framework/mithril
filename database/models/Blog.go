@@ -8,11 +8,11 @@ import (
 
 // Blog represents a blog row (pgx scanning).
 type Blog struct {
-	ID        uuid.UUID
-	Title     string
-	Content   string
-	AuthorID  uuid.UUID
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        uuid.UUID `json:"id"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	AuthorID  uuid.UUID `json:"author_id"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

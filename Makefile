@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill
+.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
 # Default target
 help: ## Show this help message
@@ -30,7 +30,7 @@ run dev: ## Run with live reload (Air)
 	@echo "Starting with live reload..."
 	go run github.com/air-verse/air@latest -c .air.toml
 
-run docker: docker-build ## Build Docker image and run container (port 4000)
+run-docker: docker-build ## Build Docker image and run container (port 4000)
 	@echo "Running $(APP_NAME):latest..."
 	docker run --rm -p 4000:4000 $(APP_NAME):latest
 
@@ -213,6 +213,66 @@ decode: ## Base64-decode (e.g. make decode hello  or  make decode S='aGVsbG8=')
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	touch .seed-allowed && ALLOW_SEED=1 go run ./cmd/seed; rm -f .seed-allowed
+
+admin-enable: ## Enable admin panel (creates .admin-panel-enabled; or set ENABLE_ADMIN_PANEL=true)
+	@touch .admin-panel-enabled && echo "Admin panel enabled (sentinel .admin-panel-enabled). Restart the app."
+
+admin-disable: ## Disable admin panel (removes sentinel file; env ENABLE_ADMIN_PANEL still respected if set)
+	@rm -f .admin-panel-enabled && echo "Admin panel sentinel removed. Unset ENABLE_ADMIN_PANEL if set in .env."
+
+# ACL CLI — loads .env when present. Examples: make acl ARGS='superuser set admin@example.com'
+acl: ## Run ACL CLI: make acl ARGS='superuser set EMAIL' | ARGS='role create NAME' | ARGS='list permissions'
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	test -n "$(ARGS)" || (echo 'Usage: make acl ARGS='"'"'superuser set user@example.com'"'"'  (see: go run ./cmd/acl)'; exit 1); \
+	go run ./cmd/acl $(ARGS)
+
+acl-superuser-set: ## make acl-superuser-set EMAIL=user@example.com
+	@test -n "$(EMAIL)" || (echo "Usage: make acl-superuser-set EMAIL=user@example.com"; exit 1); \
+	$(MAKE) acl ARGS='superuser set $(EMAIL)'
+
+acl-superuser-unset: ## make acl-superuser-unset EMAIL=user@example.com
+	@test -n "$(EMAIL)" || (echo "Usage: make acl-superuser-unset EMAIL=user@example.com"; exit 1); \
+	$(MAKE) acl ARGS='superuser unset $(EMAIL)'
+
+acl-role-create: ## make acl-role-create NAME=editor DESC='optional description'
+	@test -n "$(NAME)" || (echo "Usage: make acl-role-create NAME=rolename"; exit 1); \
+	$(MAKE) acl ARGS='role create $(NAME) $(DESC)'
+
+acl-role-delete: ## make acl-role-delete NAME=editor
+	@test -n "$(NAME)" || (echo "Usage: make acl-role-delete NAME=rolename"; exit 1); \
+	$(MAKE) acl ARGS='role delete $(NAME)'
+
+acl-permission-create: ## make acl-permission-create CODENAME=app.perm DESC='optional'
+	@test -n "$(CODENAME)" || (echo "Usage: make acl-permission-create CODENAME=foo.bar"; exit 1); \
+	$(MAKE) acl ARGS='permission create $(CODENAME) $(DESC)'
+
+acl-permission-delete: ## make acl-permission-delete CODENAME=foo.bar
+	@test -n "$(CODENAME)" || (echo "Usage: make acl-permission-delete CODENAME=foo.bar"; exit 1); \
+	$(MAKE) acl ARGS='permission delete $(CODENAME)'
+
+acl-assign-role: ## make acl-assign-role USER_EMAIL=... ROLE_NAME=...
+	@test -n "$(USER_EMAIL)" && test -n "$(ROLE_NAME)" || (echo "Usage: make acl-assign-role USER_EMAIL=... ROLE_NAME=..."; exit 1); \
+	$(MAKE) acl ARGS='assign role $(USER_EMAIL) $(ROLE_NAME)'
+
+acl-revoke-role: ## make acl-revoke-role USER_EMAIL=... ROLE_NAME=...
+	@test -n "$(USER_EMAIL)" && test -n "$(ROLE_NAME)" || (echo "Usage: make acl-revoke-role USER_EMAIL=... ROLE_NAME=..."; exit 1); \
+	$(MAKE) acl ARGS='revoke role $(USER_EMAIL) $(ROLE_NAME)'
+
+acl-assign-permission-role: ## make acl-assign-permission-role ROLE_NAME=... CODENAME=...
+	@test -n "$(ROLE_NAME)" && test -n "$(CODENAME)" || (echo "Usage: ..."; exit 1); \
+	$(MAKE) acl ARGS='assign permission role $(ROLE_NAME) $(CODENAME)'
+
+acl-revoke-permission-role: ## make acl-revoke-permission-role ROLE_NAME=... CODENAME=...
+	@test -n "$(ROLE_NAME)" && test -n "$(CODENAME)" || (echo "Usage: ..."; exit 1); \
+	$(MAKE) acl ARGS='revoke permission role $(ROLE_NAME) $(CODENAME)'
+
+acl-assign-permission-user: ## make acl-assign-permission-user USER_EMAIL=... CODENAME=...
+	@test -n "$(USER_EMAIL)" && test -n "$(CODENAME)" || (echo "Usage: ..."; exit 1); \
+	$(MAKE) acl ARGS='assign permission user $(USER_EMAIL) $(CODENAME)'
+
+acl-revoke-permission-user: ## make acl-revoke-permission-user USER_EMAIL=... CODENAME=...
+	@test -n "$(USER_EMAIL)" && test -n "$(CODENAME)" || (echo "Usage: ..."; exit 1); \
+	$(MAKE) acl ARGS='revoke permission user $(USER_EMAIL) $(CODENAME)'
 
 kill: ## Kill app on port 4000 and Air (parent of that process)
 	@pids=$$(lsof -t -i:4000); \

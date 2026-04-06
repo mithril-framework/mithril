@@ -2,6 +2,7 @@ tmp/
 bin/
 # .env
 .seed-allowed
+.admin-panel-enabled
 *.exe
 coverage.out
 coverage.html
