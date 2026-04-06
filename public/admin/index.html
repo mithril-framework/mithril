@@ -9,20 +9,29 @@
 <body>
   <header class="top">
     <h1>Admin</h1>
-    <p class="hint">Sign in via <code>POST /auth/login</code>, paste access token below. Requires superuser or <code>admin.access</code>.</p>
+    <p class="hint">Everyone must sign in. Use email/password (same as <code>/auth/login</code>) or paste an access token. The API requires superuser or <code>admin.access</code>.</p>
   </header>
 
-  <section class="card">
-    <h2>Session</h2>
-    <label>Access token <input type="password" id="token" autocomplete="off" placeholder="Bearer token" /></label>
-    <button type="button" id="saveToken">Save to session</button>
-    <button type="button" id="clearToken">Clear</button>
+  <section class="card" id="loginCard">
+    <h2>Sign in</h2>
+    <div class="grid login-grid">
+      <label>Email <input type="email" id="loginEmail" autocomplete="username" /></label>
+      <label>Password <input type="password" id="loginPassword" autocomplete="current-password" /></label>
+      <button type="button" id="loginBtn" class="btn-primary">Sign in</button>
+    </div>
+    <p class="divider">or paste token</p>
+    <label>Access token <input type="password" id="token" autocomplete="off" placeholder="eyJ…" /></label>
+    <div class="row">
+      <button type="button" id="saveToken" class="btn-primary">Use token</button>
+      <button type="button" id="clearToken">Sign out</button>
+    </div>
     <p id="sessionStatus" class="status"></p>
   </section>
 
-  <nav class="tabs" id="tabs"></nav>
-
-  <main id="view"></main>
+  <div id="adminApp" class="admin-app" hidden>
+    <nav class="tabs" id="tabs"></nav>
+    <main id="view"></main>
+  </div>
 
   <template id="tpl-permissions">
     <section class="card">

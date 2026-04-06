@@ -92,3 +92,23 @@ fieldset {
   padding: 0.65rem 0.85rem;
 }
 legend { color: var(--muted); font-size: 0.85rem; padding: 0 0.35rem; }
+
+.admin-app[hidden] {
+  display: none !important;
+}
+
+.login-grid {
+  max-width: 22rem;
+}
+
+p.divider {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 1rem 0 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+}
+
+.btn-primary {
+  justify-self: start;
+}

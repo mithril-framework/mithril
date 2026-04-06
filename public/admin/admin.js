@@ -1,6 +1,26 @@
 (function () {
   var TOKEN_KEY = 'admin_token';
-  var api = function (path, opts) {
+  var tabsBuilt = false;
+
+  var adminApp = document.getElementById('adminApp');
+  var tabBar = document.getElementById('tabs');
+  var view = document.getElementById('view');
+  var sessionStatus = document.getElementById('sessionStatus');
+
+  var tabs = [
+    { id: 'permissions', label: 'Permissions' },
+    { id: 'roles', label: 'Roles' },
+    { id: 'assign', label: 'Assign' },
+    { id: 'users', label: 'Users' },
+    { id: 'blogs', label: 'Blogs' }
+  ];
+
+  function setStatus(el, text, cls) {
+    el.textContent = text || '';
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function api(path, opts) {
     opts = opts || {};
     var tok = sessionStorage.getItem(TOKEN_KEY);
     var headers = opts.headers || {};
@@ -25,47 +45,132 @@
         return data;
       });
     });
-  };
-
-  function setStatus(el, text, cls) {
-    el.textContent = text || '';
-    el.className = 'status' + (cls ? ' ' + cls : '');
   }
+
+  function hideAdminUI() {
+    adminApp.hidden = true;
+    view.innerHTML = '';
+    tabBar.innerHTML = '';
+    tabsBuilt = false;
+  }
+
+  function buildTabs() {
+    if (tabsBuilt) return;
+    tabsBuilt = true;
+    tabs.forEach(function (t, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = t.label;
+      b.dataset.tab = t.id;
+      if (i === 0) b.classList.add('on');
+      b.onclick = function () {
+        tabBar.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+        render(t.id);
+      };
+      tabBar.appendChild(b);
+    });
+  }
+
+  function showAdminUI() {
+    adminApp.hidden = false;
+    buildTabs();
+    render('permissions');
+  }
+
+  /** Validates token with server; shows admin UI only on success. No alert(). */
+  function verifySession() {
+    var tok = sessionStorage.getItem(TOKEN_KEY);
+    if (!tok) {
+      hideAdminUI();
+      setStatus(sessionStatus, 'Sign in with email/password or paste a token.', '');
+      return Promise.resolve(false);
+    }
+    return fetch('/admin/api/meta', {
+      headers: { 'Authorization': 'Bearer ' + tok, 'Accept': 'application/json' }
+    }).then(function (res) {
+      if (!res.ok) {
+        sessionStorage.removeItem(TOKEN_KEY);
+        document.getElementById('token').value = '';
+        hideAdminUI();
+        if (res.status === 401) {
+          setStatus(sessionStatus, 'Unauthorized — sign in again.', 'err');
+        } else if (res.status === 403) {
+          setStatus(sessionStatus, 'Forbidden — need superuser or admin.access permission.', 'err');
+        } else {
+          setStatus(sessionStatus, 'Could not verify session (' + res.status + ').', 'err');
+        }
+        return false;
+      }
+      return res.json().then(function () {
+        document.getElementById('token').value = tok;
+        setStatus(sessionStatus, 'Signed in.', 'ok');
+        showAdminUI();
+        return true;
+      });
+    }).catch(function () {
+      hideAdminUI();
+      setStatus(sessionStatus, 'Network error — try again.', 'err');
+      return false;
+    });
+  }
+
+  document.getElementById('loginBtn').onclick = function () {
+    var email = document.getElementById('loginEmail').value.trim();
+    var password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+      setStatus(sessionStatus, 'Email and password required.', 'err');
+      return;
+    }
+    setStatus(sessionStatus, 'Signing in…', '');
+    fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ email: email, password: password })
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          if (!res.ok) {
+            var m = (body && body.message) || body.error || res.statusText;
+            throw new Error(typeof m === 'string' ? m : 'Login failed');
+          }
+          var at =
+            body.data &&
+            body.data.tokens &&
+            body.data.tokens.access_token;
+          if (!at) throw new Error('No access_token in response');
+          sessionStorage.setItem(TOKEN_KEY, at);
+          document.getElementById('loginPassword').value = '';
+          return verifySession();
+        });
+      })
+      .catch(function (e) {
+        setStatus(sessionStatus, e.message || 'Login failed', 'err');
+      });
+  };
 
   document.getElementById('saveToken').onclick = function () {
     var v = document.getElementById('token').value.trim();
+    if (!v) {
+      setStatus(sessionStatus, 'Paste a token first.', 'err');
+      return;
+    }
     sessionStorage.setItem(TOKEN_KEY, v);
-    setStatus(document.getElementById('sessionStatus'), 'Token saved.', 'ok');
+    verifySession();
   };
+
   document.getElementById('clearToken').onclick = function () {
     sessionStorage.removeItem(TOKEN_KEY);
     document.getElementById('token').value = '';
-    setStatus(document.getElementById('sessionStatus'), 'Cleared.');
+    document.getElementById('loginEmail').value = '';
+    document.getElementById('loginPassword').value = '';
+    hideAdminUI();
+    setStatus(sessionStatus, 'Signed out.', '');
   };
 
-  var tabs = [
-    { id: 'permissions', label: 'Permissions' },
-    { id: 'roles', label: 'Roles' },
-    { id: 'assign', label: 'Assign' },
-    { id: 'users', label: 'Users' },
-    { id: 'blogs', label: 'Blogs' }
-  ];
-
-  var tabBar = document.getElementById('tabs');
-  var view = document.getElementById('view');
-  tabs.forEach(function (t, i) {
-    var b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = t.label;
-    b.dataset.tab = t.id;
-    if (i === 0) b.classList.add('on');
-    b.onclick = function () {
-      tabBar.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); });
-      b.classList.add('on');
-      render(t.id);
-    };
-    tabBar.appendChild(b);
-  });
+  function alertErr(e) {
+    alert(e.message || String(e));
+  }
 
   function renderPermissions(root) {
     var tpl = document.getElementById('tpl-permissions');
@@ -237,10 +342,6 @@
     load();
   }
 
-  function alertErr(e) {
-    alert(e.message || String(e));
-  }
-
   function render(id) {
     view.innerHTML = '';
     if (id === 'permissions') renderPermissions(view);
@@ -250,5 +351,5 @@
     else if (id === 'blogs') renderBlogs(view);
   }
 
-  render('permissions');
+  verifySession();
 })();
