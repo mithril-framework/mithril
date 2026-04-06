@@ -722,9 +722,9 @@
     var shell = pageFormShell('Add blog', '/admin/blog');
     contentEl.appendChild(shell.wrap);
     shell.panel.innerHTML =
+      '<p class="signin-hint">Author is set automatically to your signed-in account.</p>' +
       '<div class="form-row"><label for="ba_title">Title</label><input id="ba_title" type="text" autocomplete="off" /></div>' +
       '<div class="form-row"><label for="ba_content">Content</label><textarea id="ba_content" rows="6"></textarea></div>' +
-      '<div class="form-row"><label for="ba_author">Author user id (UUID)</label><input id="ba_author" type="text" autocomplete="off" /></div>' +
       '<div class="form-row"><label><input type="checkbox" id="ba_active" checked /> Active</label></div>' +
       '<button type="button" class="btn-add" id="ba_save">Save</button>';
     document.getElementById('ba_save').addEventListener('click', function () {
@@ -734,7 +734,6 @@
         body: {
           title: document.getElementById('ba_title').value,
           content: document.getElementById('ba_content').value,
-          author_id: (document.getElementById('ba_author').value || '').trim(),
           is_active: document.getElementById('ba_active').checked
         }
       })
@@ -749,14 +748,13 @@
     api('/resources/blogs/' + encodeURIComponent(id))
       .then(function (b) {
         shell.panel.innerHTML =
+          '<p class="signin-hint">Author cannot be changed here; it stays the original creator.</p>' +
           '<div class="form-row"><label for="be_title">Title</label><input id="be_title" type="text" autocomplete="off" /></div>' +
           '<div class="form-row"><label for="be_content">Content</label><textarea id="be_content" rows="6"></textarea></div>' +
-          '<div class="form-row"><label for="be_author">Author user id (UUID)</label><input id="be_author" type="text" autocomplete="off" /></div>' +
           '<div class="form-row"><label><input type="checkbox" id="be_active" /> Active</label></div>' +
           '<button type="button" class="btn-add" id="be_save">Save</button>';
         document.getElementById('be_title').value = b.title || '';
         document.getElementById('be_content').value = b.content || '';
-        document.getElementById('be_author').value = b.author_id || '';
         document.getElementById('be_active').checked = b.is_active !== false;
         document.getElementById('be_save').addEventListener('click', function () {
           shell.err.textContent = '';
@@ -765,7 +763,6 @@
             body: {
               title: document.getElementById('be_title').value,
               content: document.getElementById('be_content').value,
-              author_id: (document.getElementById('be_author').value || '').trim(),
               is_active: document.getElementById('be_active').checked
             }
           })

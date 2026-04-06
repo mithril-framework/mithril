@@ -1,87 +1,140 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Administration — Mithril Rev</title>
-  <link rel="stylesheet" href="/admin/admin.css" />
-</head>
-<body>
-
-<div id="loginShell">
-  <div class="login-brand"><span>Mithril Rev</span> administration</div>
-  <div class="signin-card">
-    <h2>Sign in</h2>
-    <p class="signin-hint">Use email and password (same as <code>/auth/login</code>) or paste an access token. You need superuser or <code>admin.access</code>.</p>
-    <label for="loginEmail">Email</label>
-    <input type="email" id="loginEmail" autocomplete="username" />
-    <label for="loginPassword">Password</label>
-    <input type="password" id="loginPassword" autocomplete="current-password" />
-    <div class="signin-actions">
-      <button type="button" id="loginBtn" class="btn-signin">Sign in</button>
-    </div>
-    <p class="signin-divider">or paste token</p>
-    <label for="token">Access token</label>
-    <input type="password" id="token" autocomplete="off" placeholder="eyJ…" />
-    <div class="signin-actions">
-      <button type="button" id="saveToken" class="btn-signin">Use token</button>
-      <button type="button" id="clearToken" class="btn-muted">Sign out</button>
-    </div>
-    <p id="sessionStatus"></p>
-  </div>
-</div>
-
-<div id="adminShell" hidden>
-  <div id="header">
-    <h1><span>Mithril Rev</span> administration</h1>
-    <div id="user-tools">
-      WELCOME, <strong id="welcomeName">ADMIN</strong>.
-      <span class="sep">&nbsp;</span>
-      <a href="/" target="_blank" rel="noopener">VIEW SITE</a>
-      <span class="sep">/</span>
-      <button type="button" class="linkish" id="headerSignOut">LOG OUT</button>
-    </div>
-  </div>
-
-  <div id="breadcrumbs">
-    <a href="/admin/" id="bcHome">Home</a> <span class="sep">›</span>
-    <span id="bcRest"></span>
-  </div>
-
-  <div id="container">
-    <div id="sidebar">
-      <div id="sidebar-search">
-        <input type="text" id="sidebarFilter" placeholder="Start typing to filter..." />
-      </div>
-      <div class="sidebar-section">Authentication and authorization</div>
-      <div class="sidebar-item" data-label="permissions">
-        <button type="button" class="model-link" data-nav="/admin/permission">Permissions</button>
-        <button type="button" class="add-link" data-nav="/admin/permission/add">Add</button>
-      </div>
-      <div class="sidebar-item" data-label="roles">
-        <button type="button" class="model-link" data-nav="/admin/role">Roles</button>
-        <button type="button" class="add-link" data-nav="/admin/role/add">Add</button>
-      </div>
-      <div class="sidebar-item" data-label="assign">
-        <button type="button" class="model-link" data-nav="/admin/assign">Assign</button>
-      </div>
-      <div class="sidebar-section">Models</div>
-      <div class="sidebar-item" data-label="users">
-        <button type="button" class="model-link" data-nav="/admin/user">Users</button>
-        <button type="button" class="add-link" data-nav="/admin/user/add">Add</button>
-      </div>
-      <div class="sidebar-item" data-label="blogs">
-        <button type="button" class="model-link" data-nav="/admin/blog">Blogs</button>
-        <button type="button" class="add-link" data-nav="/admin/blog/add">Add</button>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Administration — Mithril Rev</title>
+    <link rel="stylesheet" href="/admin/admin.css" />
+  </head>
+  <body>
+    <div id="loginShell">
+      <div class="login-brand"><span>Mithril Rev</span> administration</div>
+      <div class="signin-card">
+        <h2>Sign in</h2>
+        <p class="signin-hint">
+          Use email and password (same as <code>/auth/login</code>) or paste an
+          access token. You need superuser or <code>admin.access</code>.
+        </p>
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" autocomplete="username" />
+        <label for="loginPassword">Password</label>
+        <input
+          type="password"
+          id="loginPassword"
+          autocomplete="current-password"
+        />
+        <div class="signin-actions">
+          <button type="button" id="loginBtn" class="btn-signin">
+            Sign in
+          </button>
+        </div>
+        <p class="signin-divider">or paste token</p>
+        <label for="token">Access token</label>
+        <input
+          type="password"
+          id="token"
+          autocomplete="off"
+          placeholder="eyJ…"
+        />
+        <div class="signin-actions">
+          <button type="button" id="saveToken" class="btn-signin">
+            Use token
+          </button>
+          <button type="button" id="clearToken" class="btn-muted">
+            Sign out
+          </button>
+        </div>
+        <p id="sessionStatus"></p>
       </div>
     </div>
 
-    <div id="content"></div>
-  </div>
-</div>
+    <div id="adminShell" hidden>
+      <div id="header">
+        <h1><span>Mithril Rev</span> administration</h1>
+        <div id="user-tools">
+          WELCOME, <strong id="welcomeName">ADMIN</strong>.
+          <span class="sep">&nbsp;</span>
+          <a href="/" target="_blank" rel="noopener">VIEW SITE</a>
+          <span class="sep">/</span>
+          <a href="/docs" target="_blank" rel="noopener">VIEW SWAGGER DOCS</a>
+          <span class="sep">/</span>
+          <a href="/monitor" target="_blank" rel="noopener">VIEW MONITOR</a>
+          <span class="sep">/</span>
+          <button type="button" class="linkish" id="headerSignOut">
+            LOG OUT
+          </button>
+        </div>
+      </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div id="breadcrumbs">
+        <a href="/admin/" id="bcHome">Home</a> <span class="sep">›</span>
+        <span id="bcRest"></span>
+      </div>
 
-<script src="/admin/admin.js"></script>
-</body>
+      <div id="container">
+        <div id="sidebar">
+          <div id="sidebar-search">
+            <input
+              type="text"
+              id="sidebarFilter"
+              placeholder="Start typing to filter..."
+            />
+          </div>
+          <div class="sidebar-section">Authentication and authorization</div>
+          <div class="sidebar-item" data-label="permissions">
+            <button
+              type="button"
+              class="model-link"
+              data-nav="/admin/permission"
+            >
+              Permissions
+            </button>
+            <button
+              type="button"
+              class="add-link"
+              data-nav="/admin/permission/add"
+            >
+              Add
+            </button>
+          </div>
+          <div class="sidebar-item" data-label="roles">
+            <button type="button" class="model-link" data-nav="/admin/role">
+              Roles
+            </button>
+            <button type="button" class="add-link" data-nav="/admin/role/add">
+              Add
+            </button>
+          </div>
+          <div class="sidebar-item" data-label="assign">
+            <button type="button" class="model-link" data-nav="/admin/assign">
+              Assign
+            </button>
+          </div>
+          <div class="sidebar-section">Models</div>
+          <div class="sidebar-item" data-label="users">
+            <button type="button" class="model-link" data-nav="/admin/user">
+              Users
+            </button>
+            <button type="button" class="add-link" data-nav="/admin/user/add">
+              Add
+            </button>
+          </div>
+          <div class="sidebar-item" data-label="blogs">
+            <button type="button" class="model-link" data-nav="/admin/blog">
+              Blogs
+            </button>
+            <button type="button" class="add-link" data-nav="/admin/blog/add">
+              Add
+            </button>
+          </div>
+        </div>
+
+        <div id="content"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="/admin/admin.js"></script>
+  </body>
 </html>

@@ -7,6 +7,7 @@ import (
 
 	"mithril-rev/database/models"
 	"mithril-rev/database/repositories"
+	"mithril-rev/internal/acl"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -453,9 +454,11 @@ func (h *Handlers) CreateBlog(c *fiber.Ctx) error {
 	if err := c.BodyParser(&m); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
-	if m.AuthorID == uuid.Nil {
-		return c.Status(400).JSON(fiber.Map{"error": "author_id required"})
+	uid, err := acl.CurrentUserID(c)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "missing authenticated user"})
 	}
+	m.AuthorID = uid
 	if err := h.blogs.Create(c.Context(), &m); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -467,11 +470,19 @@ func (h *Handlers) UpdateBlog(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
+	existing, err := h.blogs.GetByID(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return c.Status(404).JSON(fiber.Map{"error": "not found"})
+		}
+		return respondDBErr(c, err)
+	}
 	var m models.Blog
 	if err := c.BodyParser(&m); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
 	m.ID = id
+	m.AuthorID = existing.AuthorID
 	if err := h.blogs.Update(c.Context(), &m); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 	}
