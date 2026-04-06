@@ -52,7 +52,7 @@ func (h *Handlers) Meta(c *fiber.Ctx) error {
 func (h *Handlers) ListPermissions(c *fiber.Ctx) error {
 	list, err := h.acl.ListPermissions(c.Context())
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	out := make([]fiber.Map, 0, len(list))
 	for _, p := range list {
@@ -89,7 +89,7 @@ func (h *Handlers) DeletePermission(c *fiber.Ctx) error {
 func (h *Handlers) ListRoles(c *fiber.Ctx) error {
 	list, err := h.acl.ListRoles(c.Context())
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	out := make([]fiber.Map, 0, len(list))
 	for _, r := range list {
@@ -140,7 +140,7 @@ func (h *Handlers) AssignRole(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "role not found"})
 	}
 	if err := h.acl.AssignRole(c.Context(), uid, rid); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"ok": true})
 }
@@ -184,7 +184,7 @@ func (h *Handlers) AssignPermissionRole(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "permission not found"})
 	}
 	if err := h.acl.AssignPermissionToRole(c.Context(), rid, pid); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"ok": true})
 }
@@ -228,7 +228,7 @@ func (h *Handlers) AssignPermissionUser(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "permission not found"})
 	}
 	if err := h.acl.AssignPermissionToUser(c.Context(), uid, pid); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"ok": true})
 }
@@ -262,7 +262,7 @@ func (h *Handlers) UserRoles(c *fiber.Ctx) error {
 	}
 	names, err := h.acl.ListUserRoleNames(c.Context(), id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"roles": names})
 }
@@ -274,7 +274,7 @@ func (h *Handlers) UserDirectPermissions(c *fiber.Ctx) error {
 	}
 	names, err := h.acl.ListUserDirectPermissionCodenames(c.Context(), id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"permissions": names})
 }
@@ -287,7 +287,7 @@ func (h *Handlers) RolePermissions(c *fiber.Ctx) error {
 	}
 	list, err := h.acl.ListRolePermissionCodenames(c.Context(), rid)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(fiber.Map{"permissions": list})
 }
@@ -299,7 +299,7 @@ func (h *Handlers) ListUsers(c *fiber.Ctx) error {
 	offset := c.QueryInt("offset", 0)
 	list, err := h.users.List(c.Context(), limit, offset)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	out := make([]fiber.Map, 0, len(list))
 	for _, u := range list {
@@ -337,7 +337,7 @@ func (h *Handlers) CreateUser(c *fiber.Ctx) error {
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), h.bcryptCost)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	u := &models.User{
 		Email: body.Email, PasswordHash: string(hash),
@@ -395,7 +395,7 @@ func (h *Handlers) UpdateUser(c *fiber.Ctx) error {
 	if body.Password != "" {
 		hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), h.bcryptCost)
 		if err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+			return respondDBErr(c, err)
 		}
 		u.PasswordHash = string(hash)
 	}
@@ -412,7 +412,7 @@ func (h *Handlers) DeleteUser(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
 	if err := h.users.Delete(c.Context(), id); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.SendStatus(http.StatusNoContent)
 }
@@ -424,7 +424,7 @@ func (h *Handlers) ListBlogs(c *fiber.Ctx) error {
 	offset := c.QueryInt("offset", 0)
 	list, err := h.blogs.List(c.Context(), limit, offset)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	out := make([]fiber.Map, 0, len(list))
 	for _, b := range list {
@@ -443,7 +443,7 @@ func (h *Handlers) GetBlog(c *fiber.Ctx) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(404).JSON(fiber.Map{"error": "not found"})
 		}
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(blogJSON(b))
 }
@@ -477,7 +477,7 @@ func (h *Handlers) UpdateBlog(c *fiber.Ctx) error {
 	}
 	b, err := h.blogs.GetByID(c.Context(), id)
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.JSON(blogJSON(b))
 }
@@ -488,7 +488,7 @@ func (h *Handlers) DeleteBlog(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid id"})
 	}
 	if err := h.blogs.Delete(c.Context(), id); err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return respondDBErr(c, err)
 	}
 	return c.SendStatus(http.StatusNoContent)
 }
