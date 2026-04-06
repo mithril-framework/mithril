@@ -16,6 +16,7 @@ import (
 	"mithril-rev/internal/db"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
 )
@@ -32,6 +33,10 @@ func main() {
 		log.Fatalf("db: %v", err)
 	}
 	defer pool.Close()
+
+	if err := requireACLSchema(ctx, pool); err != nil {
+		log.Fatal(err)
+	}
 
 	repo := repositories.NewUserRepository(pool)
 	sc := bufio.NewScanner(os.Stdin)
@@ -143,6 +148,25 @@ func promptPasswordWithPolicy(sc *bufio.Scanner) (string, bool) {
 		}
 		return pw1, true
 	}
+}
+
+func requireACLSchema(ctx context.Context, pool *pgxpool.Pool) error {
+	var ok bool
+	err := pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = current_schema()
+			  AND table_name = 'users'
+			  AND column_name = 'is_superuser'
+		)
+	`).Scan(&ok)
+	if err != nil {
+		return fmt.Errorf("database schema check: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("database is missing ACL schema (e.g. users.is_superuser); run: make migrate-up")
+	}
+	return nil
 }
 
 func loadEnvFile(filename string) {

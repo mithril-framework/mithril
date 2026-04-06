@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
+.PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
 # Default target
 help: ## Show this help message
@@ -26,9 +26,11 @@ run: ## Run the application
 	@echo "Starting application..."
 	go run .
 
-run dev: ## Run with live reload (Air)
+run-dev: ## Run with live reload (Air). Use this instead of `make run dev` (that form overrode the `run` target).
 	@echo "Starting with live reload..."
 	go run github.com/air-verse/air@latest -c .air.toml
+
+run-air: run-dev ## Alias for run-dev
 
 run-docker: docker-build ## Build Docker image and run container (port 4000)
 	@echo "Running $(APP_NAME):latest..."
