@@ -4,11 +4,16 @@ import (
 	"mithril-rev/database/repositories"
 	"mithril-rev/internal/acl"
 	"mithril-rev/internal/admin"
+	"os"
+	"path/filepath"
+	"strings"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const adminPublicDir = "./public/admin"
 
 // SetupAdminRoutes registers /admin static files and /admin/api (when panel enabled and pool set).
 func SetupAdminRoutes(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtCfg jwtware.Config, aclRepo *repositories.ACLRepository, aclSvc *acl.Service) {
@@ -27,8 +32,27 @@ func SetupAdminRoutes(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories
 		return c.Next()
 	})
 
-	app.Static("/admin", "./public/admin", fiber.Static{
-		Index: "index.html",
+	// Serve real files (admin.js, admin.css, …); any other GET /admin/... → SPA index.html
+	app.Use("/admin", func(c *fiber.Ctx) error {
+		if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {
+			return c.Next()
+		}
+		if strings.HasPrefix(c.Path(), "/admin/api") {
+			return c.Next()
+		}
+		rest := strings.TrimPrefix(c.Path(), "/admin")
+		rest = strings.Trim(rest, "/")
+		if strings.Contains(rest, "..") {
+			return c.Status(400).SendString("invalid path")
+		}
+		if rest == "" {
+			return c.SendFile(filepath.Join(adminPublicDir, "index.html"))
+		}
+		full := filepath.Join(adminPublicDir, filepath.FromSlash(rest))
+		if fi, err := os.Stat(full); err == nil && !fi.IsDir() {
+			return c.SendFile(full)
+		}
+		return c.SendFile(filepath.Join(adminPublicDir, "index.html"))
 	})
 
 	api := app.Group("/admin/api")

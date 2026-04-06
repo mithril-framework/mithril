@@ -329,6 +329,12 @@ body {
 .results-table tbody tr { border-bottom: 1px solid #eee; transition: background .1s; }
 .results-table tbody tr:hover { background: var(--row-hover); }
 .results-table td { padding: 7px 10px; vertical-align: middle; word-break: break-word; }
+.results-table td a.row-link {
+  color: var(--sidebar-link);
+  text-decoration: none;
+  font-weight: 500;
+}
+.results-table td a.row-link:hover { text-decoration: underline; }
 
 .btn-delete {
   background: none;

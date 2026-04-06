@@ -44,7 +44,7 @@
   </div>
 
   <div id="breadcrumbs">
-    <a href="#" id="bcHome">Home</a> <span class="sep">›</span>
+    <a href="/admin/" id="bcHome">Home</a> <span class="sep">›</span>
     <span id="bcRest"></span>
   </div>
 
@@ -55,45 +55,28 @@
       </div>
       <div class="sidebar-section">Authentication and authorization</div>
       <div class="sidebar-item" data-label="permissions">
-        <button type="button" class="model-link" data-view="permissions">Permissions</button>
-        <button type="button" class="add-link" data-add="permission">Add</button>
+        <button type="button" class="model-link" data-nav="/admin/permission">Permissions</button>
+        <button type="button" class="add-link" data-nav="/admin/permission/add">Add</button>
       </div>
       <div class="sidebar-item" data-label="roles">
-        <button type="button" class="model-link" data-view="roles">Roles</button>
-        <button type="button" class="add-link" data-add="role">Add</button>
+        <button type="button" class="model-link" data-nav="/admin/role">Roles</button>
+        <button type="button" class="add-link" data-nav="/admin/role/add">Add</button>
       </div>
       <div class="sidebar-item" data-label="assign">
-        <button type="button" class="model-link" data-view="assign">Assign</button>
+        <button type="button" class="model-link" data-nav="/admin/assign">Assign</button>
       </div>
       <div class="sidebar-section">Models</div>
       <div class="sidebar-item" data-label="users">
-        <button type="button" class="model-link" data-view="users">Users</button>
-        <button type="button" class="add-link" data-add="user">Add</button>
+        <button type="button" class="model-link" data-nav="/admin/user">Users</button>
+        <button type="button" class="add-link" data-nav="/admin/user/add">Add</button>
       </div>
       <div class="sidebar-item" data-label="blogs">
-        <button type="button" class="model-link" data-view="blogs">Blogs</button>
-        <button type="button" class="add-link" data-add="blog">Add</button>
+        <button type="button" class="model-link" data-nav="/admin/blog">Blogs</button>
+        <button type="button" class="add-link" data-nav="/admin/blog/add">Add</button>
       </div>
     </div>
 
     <div id="content"></div>
-  </div>
-</div>
-
-<div id="modal-overlay" class="modal-overlay" aria-hidden="true">
-  <div class="modal" id="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-header">
-      <span id="modal-title">Add</span>
-      <button type="button" class="modal-close" id="modal-close" aria-label="Close">✕</button>
-    </div>
-    <form id="admin-modal-form" autocomplete="off" novalidate>
-      <p class="modal-inline-err" id="modal-inline-err" role="alert" aria-live="assertive"></p>
-      <div class="modal-body" id="modal-body"></div>
-    </form>
-    <div class="modal-footer">
-      <button type="button" class="btn-cancel" id="modal-cancel">Cancel</button>
-      <button type="button" class="btn-save" id="modal-save">Save</button>
-    </div>
   </div>
 </div>
 

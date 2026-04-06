@@ -8,22 +8,15 @@
   var welcomeName = document.getElementById('welcomeName');
   var bcRest = document.getElementById('bcRest');
   var toastEl = document.getElementById('toast');
-  var modalOverlay = document.getElementById('modal-overlay');
-  var modalTitle = document.getElementById('modal-title');
-  var modalBody = document.getElementById('modal-body');
-  var modalSave = document.getElementById('modal-save');
-  var adminModalForm = document.getElementById('admin-modal-form');
 
-  var currentView = 'permissions';
-  var modalKind = null;
   var reloadCurrent = null;
 
-  var views = {
-    permissions: { breadcrumb: 'Permissions', title: 'Select permission to change', addBtn: 'ADD PERMISSION +' },
-    roles: { breadcrumb: 'Roles', title: 'Select role to change', addBtn: 'ADD ROLE +' },
-    assign: { breadcrumb: 'Assign', title: 'Assign and revoke' },
-    users: { breadcrumb: 'Users', title: 'Select user to change', addBtn: 'ADD USER +' },
-    blogs: { breadcrumb: 'Blogs', title: 'Select blog to change', addBtn: 'ADD BLOG +' }
+  var labels = {
+    permission: 'Permissions',
+    role: 'Roles',
+    user: 'Users',
+    blog: 'Blogs',
+    assign: 'Assign'
   };
 
   function setStatus(el, text, cls) {
@@ -38,18 +31,7 @@
   }
 
   function errToast(e) {
-    var msg = e.message || String(e);
-    var inline = document.getElementById('modal-inline-err');
-    if (modalOverlay.classList.contains('open') && inline) {
-      inline.textContent = msg;
-      return;
-    }
-    showToast(msg);
-  }
-
-  function clearModalInlineErr() {
-    var inline = document.getElementById('modal-inline-err');
-    if (inline) inline.textContent = '';
+    showToast(e.message || String(e));
   }
 
   function parseJwtEmail(tok) {
@@ -61,7 +43,7 @@
       if (pad) b64 += '===='.slice(0, 4 - pad);
       var payload = JSON.parse(atob(b64));
       return payload.email || payload.sub || '';
-    } catch (e) {
+    } catch (err) {
       return '';
     }
   }
@@ -93,18 +75,64 @@
     });
   }
 
-  function updateBreadcrumb() {
-    var v = views[currentView];
-    if (!v) return;
-    bcRest.innerHTML = '';
-    var span = document.createElement('span');
-    span.textContent = v.breadcrumb;
-    bcRest.appendChild(span);
+  /** @returns {{ page: string, resource?: string, id?: string }} */
+  function parseRoute() {
+    var path = window.location.pathname.replace(/\/+$/, '') || '/admin';
+    var rest = path.replace(/^\/admin\/?/, '').split('/').filter(Boolean);
+    if (rest.length === 0) return { page: 'list', resource: 'permission' };
+    var seg0 = rest[0];
+    if (seg0 === 'assign') return { page: 'assign' };
+    if (['permission', 'role', 'user', 'blog'].indexOf(seg0) < 0) {
+      return { page: 'list', resource: 'permission' };
+    }
+    if (rest.length === 1) return { page: 'list', resource: seg0 };
+    if (rest[1] === 'add') return { page: 'add', resource: seg0 };
+    var id = rest.slice(1).map(function (s) { return decodeURIComponent(s); }).join('/');
+    return { page: 'edit', resource: seg0, id: id };
   }
 
-  function setSidebarActive() {
+  function go(path) {
+    if (path.indexOf('/') !== 0) path = '/admin/' + path;
+    history.pushState(null, '', path);
+    applyRoute();
+  }
+
+  function crumbLink(text, href) {
+    var a = document.createElement('a');
+    a.href = href;
+    a.textContent = text;
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      go(href);
+    });
+    return a;
+  }
+
+  function buildBreadcrumbs(route) {
+    bcRest.innerHTML = '';
+    if (route.page === 'assign') {
+      bcRest.appendChild(document.createTextNode(labels.assign));
+      return;
+    }
+    var res = route.resource;
+    var listHref = '/admin/' + res;
+    bcRest.appendChild(crumbLink(labels[res] || res, listHref));
+    if (route.page === 'add') {
+      bcRest.appendChild(document.createTextNode(' › '));
+      bcRest.appendChild(document.createTextNode('Add'));
+    } else if (route.page === 'edit') {
+      bcRest.appendChild(document.createTextNode(' › '));
+      bcRest.appendChild(document.createTextNode('Change'));
+    }
+  }
+
+  function setSidebarActive(route) {
+    var base = '/admin/';
+    if (route.page === 'assign') base = '/admin/assign';
+    else if (route.resource) base = '/admin/' + route.resource;
     document.querySelectorAll('.sidebar-item .model-link').forEach(function (b) {
-      b.classList.toggle('active', b.getAttribute('data-view') === currentView);
+      var nav = b.getAttribute('data-nav');
+      b.classList.toggle('active', nav === base);
     });
   }
 
@@ -116,13 +144,40 @@
     });
   }
 
-  function navigate(view) {
-    if (!views[view]) return;
-    var same = currentView === view;
-    currentView = view;
-    setSidebarActive();
-    updateBreadcrumb();
-    if (!same) render(view);
+  function applyRoute() {
+    contentEl.innerHTML = '';
+    reloadCurrent = null;
+    var route = parseRoute();
+    setSidebarActive(route);
+    buildBreadcrumbs(route);
+
+    if (route.page === 'assign') {
+      renderAssign();
+      return;
+    }
+    if (route.resource === 'permission') {
+      if (route.page === 'list') renderPermissionList();
+      else if (route.page === 'add') renderPermissionAdd();
+      else renderPermissionView(route.id);
+      return;
+    }
+    if (route.resource === 'role') {
+      if (route.page === 'list') renderRoleList();
+      else if (route.page === 'add') renderRoleAdd();
+      else renderRoleView(route.id);
+      return;
+    }
+    if (route.resource === 'user') {
+      if (route.page === 'list') renderUserList();
+      else if (route.page === 'add') renderUserAdd();
+      else renderUserEdit(route.id);
+      return;
+    }
+    if (route.resource === 'blog') {
+      if (route.page === 'list') renderBlogList();
+      else if (route.page === 'add') renderBlogAdd();
+      else renderBlogEdit(route.id);
+    }
   }
 
   function hideAdminUI() {
@@ -138,9 +193,7 @@
     var tok = sessionStorage.getItem(TOKEN_KEY);
     var em = parseJwtEmail(tok || '');
     welcomeName.textContent = em ? em.toUpperCase() : 'ADMIN';
-    setSidebarActive();
-    updateBreadcrumb();
-    navigate(currentView);
+    applyRoute();
   }
 
   function verifySession() {
@@ -186,132 +239,63 @@
     setStatus(sessionStatus, 'Signed out.', '');
   }
 
-  function closeModal() {
-    modalOverlay.classList.remove('open');
-    modalOverlay.setAttribute('aria-hidden', 'true');
-    modalKind = null;
-    modalBody.innerHTML = '';
-    clearModalInlineErr();
-  }
-
-  function openAdd(kind) {
-    if (kind === 'user') {
-      if (currentView !== 'users') navigate('users');
-      else {
-        setSidebarActive();
-        updateBreadcrumb();
-      }
-      requestAnimationFrame(function () {
-        var panel = document.getElementById('user-create-inline');
-        var em = document.getElementById('inline_uemail');
-        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        if (em) em.focus();
-      });
-      return;
-    }
-    openModal(kind);
-  }
-
-  function openModal(kind) {
-    if (kind === 'user') {
-      openAdd('user');
-      return;
-    }
-    clearModalInlineErr();
-    modalKind = kind;
-    modalBody.innerHTML = '';
-    if (kind === 'permission') {
-      modalTitle.textContent = 'Add permission';
-      modalBody.innerHTML =
-        '<div class="form-row"><label for="m_pcodename">Codename</label><input id="m_pcodename" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label for="m_pdesc">Description</label><input id="m_pdesc" type="text" autocomplete="off" /></div>';
-    } else if (kind === 'role') {
-      modalTitle.textContent = 'Add role';
-      modalBody.innerHTML =
-        '<div class="form-row"><label for="m_rname">Name</label><input id="m_rname" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label for="m_rdesc">Description</label><input id="m_rdesc" type="text" autocomplete="off" /></div>';
-    } else if (kind === 'blog') {
-      modalTitle.textContent = 'Add blog';
-      modalBody.innerHTML =
-        '<div class="form-row"><label for="m_btitle">Title</label><input id="m_btitle" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label for="m_bcontent">Content</label><textarea id="m_bcontent" rows="5"></textarea></div>' +
-        '<div class="form-row"><label for="m_bauthor">Author user id (UUID)</label><input id="m_bauthor" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label><input type="checkbox" id="m_bactive" checked /> Active</label></div>';
-    } else {
-      modalKind = null;
-      return;
-    }
-    modalOverlay.classList.add('open');
-    modalOverlay.setAttribute('aria-hidden', 'false');
-  }
-
-  function saveModal() {
-    if (!modalKind) return;
-    clearModalInlineErr();
-    var k = modalKind;
-    var after = function () {
-      closeModal();
-      if (reloadCurrent) reloadCurrent();
-    };
-    if (k === 'permission') {
-      var codename = (document.getElementById('m_pcodename') || {}).value;
-      var description = (document.getElementById('m_pdesc') || {}).value;
-      api('/permissions', { method: 'POST', body: { codename: (codename || '').trim(), description: (description || '').trim() } })
-        .then(after)
-        .catch(errToast);
-    } else if (k === 'role') {
-      var name = (document.getElementById('m_rname') || {}).value;
-      var rdesc = (document.getElementById('m_rdesc') || {}).value;
-      api('/roles', { method: 'POST', body: { name: (name || '').trim(), description: (rdesc || '').trim() } })
-        .then(after)
-        .catch(errToast);
-    } else if (k === 'blog') {
-      api('/resources/blogs', {
-        method: 'POST',
-        body: {
-          title: document.getElementById('m_btitle').value,
-          content: document.getElementById('m_bcontent').value,
-          author_id: (document.getElementById('m_bauthor').value || '').trim(),
-          is_active: document.getElementById('m_bactive').checked
-        }
-      })
-        .then(after)
-        .catch(errToast);
-    }
-  }
-
-  function contentHeader(titleText, addBtnText, addKind) {
+  function contentHeader(titleText, addLabel, addPath) {
     var row = document.createElement('div');
     row.id = 'content-header';
     var h2 = document.createElement('h2');
     h2.textContent = titleText;
     row.appendChild(h2);
-    if (addBtnText && addKind) {
+    if (addLabel && addPath) {
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn-add';
-      btn.textContent = addBtnText;
-      btn.addEventListener('click', function () {
-        openAdd(addKind);
-      });
+      btn.textContent = addLabel;
+      btn.addEventListener('click', function () { go(addPath); });
       row.appendChild(btn);
     }
     return row;
   }
 
-  function renderPermissions() {
-    contentEl.innerHTML = '';
-    var meta = views.permissions;
-    contentEl.appendChild(contentHeader(meta.title, meta.addBtn, 'permission'));
+  function pageFormShell(title, listPath) {
+    var wrap = document.createElement('div');
+    var header = document.createElement('div');
+    header.id = 'content-header';
+    var h2 = document.createElement('h2');
+    h2.textContent = title;
+    header.appendChild(h2);
+    var back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'btn-muted';
+    back.textContent = '« Back to list';
+    back.addEventListener('click', function () { go(listPath); });
+    header.appendChild(back);
+    wrap.appendChild(header);
+    var err = document.createElement('p');
+    err.className = 'modal-inline-err';
+    err.id = 'page-form-err';
+    wrap.appendChild(err);
+    var panel = document.createElement('div');
+    panel.className = 'assign-panel';
+    wrap.appendChild(panel);
+    return { wrap: wrap, panel: panel, err: err };
+  }
+
+  function attachPassMaskFocus(inp) {
+    inp.readOnly = true;
+    inp.addEventListener('focus', function once() {
+      inp.readOnly = false;
+      inp.removeEventListener('focus', once);
+    });
+  }
+
+  function renderPermissionList() {
+    contentEl.appendChild(contentHeader('Select permission to change', 'ADD PERMISSION +', '/admin/permission/add'));
     var countEl = document.createElement('div');
     countEl.className = 'result-count';
-    countEl.id = 'perm-count';
     contentEl.appendChild(countEl);
     var table = document.createElement('table');
     table.className = 'results-table';
-    var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Codename</th><th>Description</th><th style="width:90px">Actions</th></tr>';
-    table.appendChild(thead);
+    table.innerHTML = '<thead><tr><th>Codename</th><th>Description</th><th style="width:120px">Actions</th></tr></thead>';
     var tbody = document.createElement('tbody');
     table.appendChild(tbody);
     contentEl.appendChild(table);
@@ -324,7 +308,15 @@
           rows.forEach(function (p) {
             var tr = document.createElement('tr');
             var td1 = document.createElement('td');
-            td1.textContent = p.codename;
+            var a = document.createElement('a');
+            a.className = 'row-link';
+            a.href = '/admin/permission/' + encodeURIComponent(p.codename);
+            a.textContent = p.codename;
+            a.addEventListener('click', function (e) {
+              e.preventDefault();
+              go('/admin/permission/' + encodeURIComponent(p.codename));
+            });
+            td1.appendChild(a);
             var td2 = document.createElement('td');
             td2.textContent = p.description || '';
             var td3 = document.createElement('td');
@@ -333,11 +325,7 @@
             del.className = 'btn-delete';
             del.textContent = 'Delete';
             del.addEventListener('click', function () {
-              api('/permissions/' + encodeURIComponent(p.codename), { method: 'DELETE' })
-                .then(function () {
-                  load();
-                })
-                .catch(errToast);
+              api('/permissions/' + encodeURIComponent(p.codename), { method: 'DELETE' }).then(load).catch(errToast);
             });
             td3.appendChild(del);
             tr.appendChild(td1);
@@ -352,18 +340,73 @@
     load();
   }
 
-  function renderRoles() {
-    contentEl.innerHTML = '';
-    var meta = views.roles;
-    contentEl.appendChild(contentHeader(meta.title, meta.addBtn, 'role'));
+  function renderPermissionAdd() {
+    var shell = pageFormShell('Add permission', '/admin/permission');
+    contentEl.appendChild(shell.wrap);
+    shell.panel.innerHTML =
+      '<div class="form-row"><label for="pa_codename">Codename</label><input id="pa_codename" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="pa_desc">Description</label><input id="pa_desc" type="text" autocomplete="off" /></div>' +
+      '<button type="button" class="btn-add" id="pa_save">Save</button>';
+    document.getElementById('pa_save').addEventListener('click', function () {
+      shell.err.textContent = '';
+      var codename = (document.getElementById('pa_codename').value || '').trim();
+      var description = (document.getElementById('pa_desc').value || '').trim();
+      api('/permissions', { method: 'POST', body: { codename: codename, description: description } })
+        .then(function () { go('/admin/permission'); })
+        .catch(function (e) { shell.err.textContent = e.message || String(e); });
+    });
+  }
+
+  function renderPermissionView(codename) {
+    var shell = pageFormShell('Permission: ' + codename, '/admin/permission');
+    contentEl.appendChild(shell.wrap);
+    api('/permissions')
+      .then(function (rows) {
+        var p = rows.filter(function (x) { return x.codename === codename; })[0];
+        if (!p) {
+          shell.err.textContent = 'Permission not found.';
+          return;
+        }
+        var hint = document.createElement('p');
+        hint.className = 'signin-hint';
+        hint.textContent = 'Codename cannot be changed via the API. Delete and recreate to rename.';
+        shell.panel.appendChild(hint);
+        var fr1 = document.createElement('div');
+        fr1.className = 'form-row';
+        var l1 = document.createElement('label');
+        l1.textContent = 'Codename';
+        var i1 = document.createElement('input');
+        i1.type = 'text';
+        i1.readOnly = true;
+        i1.value = p.codename || '';
+        fr1.appendChild(l1);
+        fr1.appendChild(i1);
+        shell.panel.appendChild(fr1);
+        var fr2 = document.createElement('div');
+        fr2.className = 'form-row';
+        var l2 = document.createElement('label');
+        l2.textContent = 'Description';
+        var i2 = document.createElement('input');
+        i2.type = 'text';
+        i2.readOnly = true;
+        i2.value = p.description || '';
+        fr2.appendChild(l2);
+        fr2.appendChild(i2);
+        shell.panel.appendChild(fr2);
+      })
+      .catch(function (e) {
+        shell.err.textContent = e.message || String(e);
+      });
+  }
+
+  function renderRoleList() {
+    contentEl.appendChild(contentHeader('Select role to change', 'ADD ROLE +', '/admin/role/add'));
     var countEl = document.createElement('div');
     countEl.className = 'result-count';
     contentEl.appendChild(countEl);
     var table = document.createElement('table');
     table.className = 'results-table';
-    var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Name</th><th>Description</th><th style="width:90px">Actions</th></tr>';
-    table.appendChild(thead);
+    table.innerHTML = '<thead><tr><th>Name</th><th>Description</th><th style="width:120px">Actions</th></tr></thead>';
     var tbody = document.createElement('tbody');
     table.appendChild(tbody);
     contentEl.appendChild(table);
@@ -376,7 +419,15 @@
           rows.forEach(function (r) {
             var tr = document.createElement('tr');
             var td1 = document.createElement('td');
-            td1.textContent = r.name;
+            var a = document.createElement('a');
+            a.className = 'row-link';
+            a.href = '/admin/role/' + encodeURIComponent(r.name);
+            a.textContent = r.name;
+            a.addEventListener('click', function (e) {
+              e.preventDefault();
+              go('/admin/role/' + encodeURIComponent(r.name));
+            });
+            td1.appendChild(a);
             var td2 = document.createElement('td');
             td2.textContent = r.description || '';
             var td3 = document.createElement('td');
@@ -385,11 +436,7 @@
             del.className = 'btn-delete';
             del.textContent = 'Delete';
             del.addEventListener('click', function () {
-              api('/roles/' + encodeURIComponent(r.name), { method: 'DELETE' })
-                .then(function () {
-                  load();
-                })
-                .catch(errToast);
+              api('/roles/' + encodeURIComponent(r.name), { method: 'DELETE' }).then(load).catch(errToast);
             });
             td3.appendChild(del);
             tr.appendChild(td1);
@@ -404,9 +451,335 @@
     load();
   }
 
+  function renderRoleAdd() {
+    var shell = pageFormShell('Add role', '/admin/role');
+    contentEl.appendChild(shell.wrap);
+    shell.panel.innerHTML =
+      '<div class="form-row"><label for="ra_name">Name</label><input id="ra_name" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="ra_desc">Description</label><input id="ra_desc" type="text" autocomplete="off" /></div>' +
+      '<button type="button" class="btn-add" id="ra_save">Save</button>';
+    document.getElementById('ra_save').addEventListener('click', function () {
+      shell.err.textContent = '';
+      api('/roles', {
+        method: 'POST',
+        body: {
+          name: (document.getElementById('ra_name').value || '').trim(),
+          description: (document.getElementById('ra_desc').value || '').trim()
+        }
+      })
+        .then(function () { go('/admin/role'); })
+        .catch(function (e) { shell.err.textContent = e.message || String(e); });
+    });
+  }
+
+  function renderRoleView(name) {
+    var shell = pageFormShell('Role: ' + name, '/admin/role');
+    contentEl.appendChild(shell.wrap);
+    api('/roles')
+      .then(function (rows) {
+        var r = rows.filter(function (x) { return x.name === name; })[0];
+        if (!r) {
+          shell.err.textContent = 'Role not found.';
+          return;
+        }
+        var hint = document.createElement('p');
+        hint.className = 'signin-hint';
+        hint.textContent = 'Role name cannot be changed via the API. Delete and recreate to rename.';
+        shell.panel.appendChild(hint);
+        var fr1 = document.createElement('div');
+        fr1.className = 'form-row';
+        var l1 = document.createElement('label');
+        l1.textContent = 'Name';
+        var i1 = document.createElement('input');
+        i1.type = 'text';
+        i1.readOnly = true;
+        i1.value = r.name || '';
+        fr1.appendChild(l1);
+        fr1.appendChild(i1);
+        shell.panel.appendChild(fr1);
+        var fr2 = document.createElement('div');
+        fr2.className = 'form-row';
+        var l2 = document.createElement('label');
+        l2.textContent = 'Description';
+        var i2 = document.createElement('input');
+        i2.type = 'text';
+        i2.readOnly = true;
+        i2.value = r.description || '';
+        fr2.appendChild(l2);
+        fr2.appendChild(i2);
+        shell.panel.appendChild(fr2);
+      })
+      .catch(function (e) {
+        shell.err.textContent = e.message || String(e);
+      });
+  }
+
+  function iconCell(yes) {
+    var span = document.createElement('span');
+    span.className = 'status-icon ' + (yes ? 'yes' : 'no');
+    span.textContent = yes ? '✓' : '✕';
+    return span;
+  }
+
+  function renderUserList() {
+    contentEl.appendChild(contentHeader('Select user to change', 'ADD USER +', '/admin/user/add'));
+    var countEl = document.createElement('div');
+    countEl.className = 'result-count';
+    contentEl.appendChild(countEl);
+    var table = document.createElement('table');
+    table.className = 'results-table';
+    var thead = document.createElement('thead');
+    thead.innerHTML =
+      '<tr><th>Email</th><th>Id</th><th>Superuser</th><th>Active</th><th style="width:90px">Actions</th></tr>';
+    table.appendChild(thead);
+    var tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    contentEl.appendChild(table);
+
+    function load() {
+      api('/resources/users?limit=50')
+        .then(function (rows) {
+          tbody.innerHTML = '';
+          countEl.innerHTML = '<strong>' + rows.length + '</strong> user' + (rows.length === 1 ? '' : 's');
+          rows.forEach(function (u) {
+            var tr = document.createElement('tr');
+            var tdE = document.createElement('td');
+            var a = document.createElement('a');
+            a.className = 'row-link';
+            a.href = '/admin/user/' + u.id;
+            a.textContent = u.email;
+            a.addEventListener('click', function (e) {
+              e.preventDefault();
+              go('/admin/user/' + u.id);
+            });
+            tdE.appendChild(a);
+            var tdI = document.createElement('td');
+            tdI.textContent = u.id;
+            var tdS = document.createElement('td');
+            tdS.appendChild(iconCell(!!u.is_superuser));
+            var tdA = document.createElement('td');
+            tdA.appendChild(iconCell(u.is_active !== false));
+            var tdX = document.createElement('td');
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'btn-delete';
+            del.textContent = 'Delete';
+            del.addEventListener('click', function () {
+              api('/resources/users/' + u.id, { method: 'DELETE' }).then(load).catch(errToast);
+            });
+            tdX.appendChild(del);
+            tr.appendChild(tdE);
+            tr.appendChild(tdI);
+            tr.appendChild(tdS);
+            tr.appendChild(tdA);
+            tr.appendChild(tdX);
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(errToast);
+    }
+    reloadCurrent = load;
+    load();
+  }
+
+  function renderUserAdd() {
+    var shell = pageFormShell('Add user', '/admin/user');
+    contentEl.appendChild(shell.wrap);
+    shell.panel.innerHTML =
+      '<div class="form-row"><label for="ua_email">Email</label><input id="ua_email" type="text" inputmode="email" spellcheck="false" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="ua_pass">Password</label><input id="ua_pass" type="text" class="admin-pass-mask" autocomplete="off" aria-label="Password" spellcheck="false" /></div>' +
+      '<div class="form-row"><label for="ua_first">First name</label><input id="ua_first" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="ua_last">Last name</label><input id="ua_last" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label><input type="checkbox" id="ua_active" checked /> Active</label></div>' +
+      '<div class="form-row"><label><input type="checkbox" id="ua_super" /> Superuser</label></div>' +
+      '<button type="button" class="btn-add" id="ua_save">Save</button>';
+    attachPassMaskFocus(document.getElementById('ua_pass'));
+    document.getElementById('ua_save').addEventListener('click', function () {
+      shell.err.textContent = '';
+      var newEmail = (document.getElementById('ua_email').value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        shell.err.textContent = 'Enter a valid email address.';
+        return;
+      }
+      api('/resources/users', {
+        method: 'POST',
+        body: {
+          email: newEmail,
+          password: document.getElementById('ua_pass').value,
+          first_name: (document.getElementById('ua_first').value || '').trim(),
+          last_name: (document.getElementById('ua_last').value || '').trim(),
+          is_active: document.getElementById('ua_active').checked,
+          is_superuser: document.getElementById('ua_super').checked
+        }
+      })
+        .then(function () { go('/admin/user'); })
+        .catch(function (e) { shell.err.textContent = e.message || String(e); });
+    });
+  }
+
+  function renderUserEdit(id) {
+    var shell = pageFormShell('Change user', '/admin/user');
+    contentEl.appendChild(shell.wrap);
+    api('/resources/users/' + encodeURIComponent(id))
+      .then(function (u) {
+        shell.panel.innerHTML =
+          '<div class="form-row"><label for="ue_email">Email</label><input id="ue_email" type="text" inputmode="email" autocomplete="off" /></div>' +
+          '<div class="form-row"><label for="ue_pass">New password (leave blank to keep)</label>' +
+          '<input id="ue_pass" type="text" class="admin-pass-mask" autocomplete="off" aria-label="New password" spellcheck="false" /></div>' +
+          '<div class="form-row"><label for="ue_first">First name</label><input id="ue_first" type="text" autocomplete="off" /></div>' +
+          '<div class="form-row"><label for="ue_last">Last name</label><input id="ue_last" type="text" autocomplete="off" /></div>' +
+          '<div class="form-row"><label><input type="checkbox" id="ue_active" /> Active</label></div>' +
+          '<div class="form-row"><label><input type="checkbox" id="ue_super" /> Superuser</label></div>' +
+          '<button type="button" class="btn-add" id="ue_save">Save</button>';
+        document.getElementById('ue_email').value = u.email || '';
+        document.getElementById('ue_first').value = u.first_name || '';
+        document.getElementById('ue_last').value = u.last_name || '';
+        document.getElementById('ue_active').checked = u.is_active !== false;
+        document.getElementById('ue_super').checked = !!u.is_superuser;
+        attachPassMaskFocus(document.getElementById('ue_pass'));
+        document.getElementById('ue_save').addEventListener('click', function () {
+          shell.err.textContent = '';
+          var newEmail = (document.getElementById('ue_email').value || '').trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+            shell.err.textContent = 'Enter a valid email address.';
+            return;
+          }
+          var body = {
+            email: newEmail,
+            first_name: (document.getElementById('ue_first').value || '').trim(),
+            last_name: (document.getElementById('ue_last').value || '').trim(),
+            is_active: document.getElementById('ue_active').checked,
+            is_superuser: document.getElementById('ue_super').checked
+          };
+          var np = document.getElementById('ue_pass').value;
+          if (np) body.password = np;
+          api('/resources/users/' + encodeURIComponent(id), { method: 'PUT', body: body })
+            .then(function () { go('/admin/user'); })
+            .catch(function (e) { shell.err.textContent = e.message || String(e); });
+        });
+      })
+      .catch(function (e) {
+        shell.err.textContent = e.message || String(e);
+      });
+  }
+
+  function renderBlogList() {
+    contentEl.appendChild(contentHeader('Select blog to change', 'ADD BLOG +', '/admin/blog/add'));
+    var countEl = document.createElement('div');
+    countEl.className = 'result-count';
+    contentEl.appendChild(countEl);
+    var table = document.createElement('table');
+    table.className = 'results-table';
+    table.innerHTML = '<thead><tr><th>Title</th><th>Id</th><th>Active</th><th style="width:90px">Actions</th></tr></thead>';
+    var tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+    contentEl.appendChild(table);
+
+    function load() {
+      api('/resources/blogs?limit=50')
+        .then(function (rows) {
+          tbody.innerHTML = '';
+          countEl.innerHTML = '<strong>' + rows.length + '</strong> blog' + (rows.length === 1 ? '' : 's');
+          rows.forEach(function (b) {
+            var tr = document.createElement('tr');
+            var tdT = document.createElement('td');
+            var a = document.createElement('a');
+            a.className = 'row-link';
+            a.href = '/admin/blog/' + b.id;
+            a.textContent = b.title || '(untitled)';
+            a.addEventListener('click', function (e) {
+              e.preventDefault();
+              go('/admin/blog/' + b.id);
+            });
+            tdT.appendChild(a);
+            var tdI = document.createElement('td');
+            tdI.textContent = b.id;
+            var tdA = document.createElement('td');
+            tdA.appendChild(iconCell(b.is_active !== false));
+            var tdX = document.createElement('td');
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'btn-delete';
+            del.textContent = 'Delete';
+            del.addEventListener('click', function () {
+              api('/resources/blogs/' + b.id, { method: 'DELETE' }).then(load).catch(errToast);
+            });
+            tdX.appendChild(del);
+            tr.appendChild(tdT);
+            tr.appendChild(tdI);
+            tr.appendChild(tdA);
+            tr.appendChild(tdX);
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(errToast);
+    }
+    reloadCurrent = load;
+    load();
+  }
+
+  function renderBlogAdd() {
+    var shell = pageFormShell('Add blog', '/admin/blog');
+    contentEl.appendChild(shell.wrap);
+    shell.panel.innerHTML =
+      '<div class="form-row"><label for="ba_title">Title</label><input id="ba_title" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label for="ba_content">Content</label><textarea id="ba_content" rows="6"></textarea></div>' +
+      '<div class="form-row"><label for="ba_author">Author user id (UUID)</label><input id="ba_author" type="text" autocomplete="off" /></div>' +
+      '<div class="form-row"><label><input type="checkbox" id="ba_active" checked /> Active</label></div>' +
+      '<button type="button" class="btn-add" id="ba_save">Save</button>';
+    document.getElementById('ba_save').addEventListener('click', function () {
+      shell.err.textContent = '';
+      api('/resources/blogs', {
+        method: 'POST',
+        body: {
+          title: document.getElementById('ba_title').value,
+          content: document.getElementById('ba_content').value,
+          author_id: (document.getElementById('ba_author').value || '').trim(),
+          is_active: document.getElementById('ba_active').checked
+        }
+      })
+        .then(function () { go('/admin/blog'); })
+        .catch(function (e) { shell.err.textContent = e.message || String(e); });
+    });
+  }
+
+  function renderBlogEdit(id) {
+    var shell = pageFormShell('Change blog', '/admin/blog');
+    contentEl.appendChild(shell.wrap);
+    api('/resources/blogs/' + encodeURIComponent(id))
+      .then(function (b) {
+        shell.panel.innerHTML =
+          '<div class="form-row"><label for="be_title">Title</label><input id="be_title" type="text" autocomplete="off" /></div>' +
+          '<div class="form-row"><label for="be_content">Content</label><textarea id="be_content" rows="6"></textarea></div>' +
+          '<div class="form-row"><label for="be_author">Author user id (UUID)</label><input id="be_author" type="text" autocomplete="off" /></div>' +
+          '<div class="form-row"><label><input type="checkbox" id="be_active" /> Active</label></div>' +
+          '<button type="button" class="btn-add" id="be_save">Save</button>';
+        document.getElementById('be_title').value = b.title || '';
+        document.getElementById('be_content').value = b.content || '';
+        document.getElementById('be_author').value = b.author_id || '';
+        document.getElementById('be_active').checked = b.is_active !== false;
+        document.getElementById('be_save').addEventListener('click', function () {
+          shell.err.textContent = '';
+          api('/resources/blogs/' + encodeURIComponent(id), {
+            method: 'PUT',
+            body: {
+              title: document.getElementById('be_title').value,
+              content: document.getElementById('be_content').value,
+              author_id: (document.getElementById('be_author').value || '').trim(),
+              is_active: document.getElementById('be_active').checked
+            }
+          })
+            .then(function () { go('/admin/blog'); })
+            .catch(function (e) { shell.err.textContent = e.message || String(e); });
+        });
+      })
+      .catch(function (e) {
+        shell.err.textContent = e.message || String(e);
+      });
+  }
+
   function renderAssign() {
-    contentEl.innerHTML = '';
-    contentEl.appendChild(contentHeader(views.assign.title, null, null));
+    contentEl.appendChild(contentHeader('Assign and revoke', null, null));
 
     function panel(title) {
       var p = document.createElement('div');
@@ -428,10 +801,8 @@
     var p1 = panel('Role ↔ user');
     var r1 = row();
     var aUserEmail = document.createElement('input');
-    aUserEmail.id = 'aUserEmail';
     aUserEmail.placeholder = 'user email';
     var aRoleName = document.createElement('input');
-    aRoleName.id = 'aRoleName';
     aRoleName.placeholder = 'role name';
     var bAssign = document.createElement('button');
     bAssign.type = 'button';
@@ -449,10 +820,8 @@
     var p2 = panel('Permission ↔ role');
     var r2 = row();
     var apRole = document.createElement('input');
-    apRole.id = 'apRole';
     apRole.placeholder = 'role name';
     var apPerm = document.createElement('input');
-    apPerm.id = 'apPerm';
     apPerm.placeholder = 'permission codename';
     var apA = document.createElement('button');
     apA.type = 'button';
@@ -470,10 +839,8 @@
     var p3 = panel('Permission ↔ user (direct)');
     var r3 = row();
     var upUser = document.createElement('input');
-    upUser.id = 'upUser';
     upUser.placeholder = 'user email';
     var upPerm = document.createElement('input');
-    upPerm.id = 'upPerm';
     upPerm.placeholder = 'permission codename';
     var upA = document.createElement('button');
     upA.type = 'button';
@@ -496,7 +863,7 @@
     function ok() {
       setStatus(msg, 'Done.', 'ok');
     }
-    function err(e) {
+    function errFn(e) {
       setStatus(msg, e.message || String(e), 'err');
     }
 
@@ -504,299 +871,40 @@
       api('/assign/role', {
         method: 'POST',
         body: { user_email: aUserEmail.value.trim(), role_name: aRoleName.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
     bRevoke.addEventListener('click', function () {
       api('/revoke/role', {
         method: 'POST',
         body: { user_email: aUserEmail.value.trim(), role_name: aRoleName.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
     apA.addEventListener('click', function () {
       api('/assign/permission/role', {
         method: 'POST',
         body: { role_name: apRole.value.trim(), codename: apPerm.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
     apR.addEventListener('click', function () {
       api('/revoke/permission/role', {
         method: 'POST',
         body: { role_name: apRole.value.trim(), codename: apPerm.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
     upA.addEventListener('click', function () {
       api('/assign/permission/user', {
         method: 'POST',
         body: { user_email: upUser.value.trim(), codename: upPerm.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
     upR.addEventListener('click', function () {
       api('/revoke/permission/user', {
         method: 'POST',
         body: { user_email: upUser.value.trim(), codename: upPerm.value.trim() }
-      })
-        .then(ok)
-        .catch(err);
+      }).then(ok).catch(errFn);
     });
 
     reloadCurrent = null;
-  }
-
-  function iconCell(yes) {
-    var span = document.createElement('span');
-    span.className = 'status-icon ' + (yes ? 'yes' : 'no');
-    span.textContent = yes ? '✓' : '✕';
-    return span;
-  }
-
-  function renderUsers() {
-    contentEl.innerHTML = '';
-    var meta = views.users;
-    contentEl.appendChild(contentHeader(meta.title, meta.addBtn, 'user'));
-
-    var createPanel = document.createElement('div');
-    createPanel.id = 'user-create-inline';
-    createPanel.className = 'assign-panel';
-    var uh3 = document.createElement('h3');
-    uh3.textContent = 'Add user';
-    createPanel.appendChild(uh3);
-    var uerr = document.createElement('p');
-    uerr.id = 'inline_u_err';
-    uerr.className = 'modal-inline-err';
-    uerr.style.margin = '0 0 8px 0';
-    uerr.style.padding = '0';
-    createPanel.appendChild(uerr);
-    function row(labelText, input) {
-      var fr = document.createElement('div');
-      fr.className = 'form-row';
-      var lab = document.createElement('label');
-      lab.textContent = labelText;
-      fr.appendChild(lab);
-      fr.appendChild(input);
-      return fr;
-    }
-    var inEmail = document.createElement('input');
-    inEmail.id = 'inline_uemail';
-    inEmail.type = 'text';
-    inEmail.setAttribute('inputmode', 'email');
-    inEmail.spellcheck = false;
-    inEmail.setAttribute('autocomplete', 'off');
-    createPanel.appendChild(row('Email', inEmail));
-    var inPass = document.createElement('input');
-    inPass.id = 'inline_upass';
-    inPass.type = 'text';
-    inPass.className = 'admin-pass-mask';
-    inPass.setAttribute('aria-label', 'Password');
-    inPass.setAttribute('autocomplete', 'off');
-    inPass.spellcheck = false;
-    inPass.readOnly = true;
-    inPass.addEventListener('focus', function once() {
-      inPass.readOnly = false;
-      inPass.removeEventListener('focus', once);
-    });
-    createPanel.appendChild(row('Password', inPass));
-    var inFirst = document.createElement('input');
-    inFirst.id = 'inline_ufirst';
-    inFirst.type = 'text';
-    inFirst.setAttribute('autocomplete', 'off');
-    createPanel.appendChild(row('First name', inFirst));
-    var inLast = document.createElement('input');
-    inLast.id = 'inline_ulast';
-    inLast.type = 'text';
-    inLast.setAttribute('autocomplete', 'off');
-    createPanel.appendChild(row('Last name', inLast));
-    var act = document.createElement('label');
-    var cbA = document.createElement('input');
-    cbA.type = 'checkbox';
-    cbA.id = 'inline_uactive';
-    cbA.checked = true;
-    act.appendChild(cbA);
-    act.appendChild(document.createTextNode(' Active'));
-    var frA = document.createElement('div');
-    frA.className = 'form-row';
-    frA.appendChild(act);
-    createPanel.appendChild(frA);
-    var sup = document.createElement('label');
-    var cbS = document.createElement('input');
-    cbS.type = 'checkbox';
-    cbS.id = 'inline_usuper';
-    sup.appendChild(cbS);
-    sup.appendChild(document.createTextNode(' Superuser'));
-    var frS = document.createElement('div');
-    frS.className = 'form-row';
-    frS.appendChild(sup);
-    createPanel.appendChild(frS);
-    var createBtn = document.createElement('button');
-    createBtn.type = 'button';
-    createBtn.className = 'btn-add';
-    createBtn.textContent = 'Create user';
-    createPanel.appendChild(createBtn);
-    contentEl.appendChild(createPanel);
-
-    var countEl = document.createElement('div');
-    countEl.className = 'result-count';
-    contentEl.appendChild(countEl);
-    var table = document.createElement('table');
-    table.className = 'results-table';
-    var thead = document.createElement('thead');
-    thead.innerHTML =
-      '<tr><th>Email</th><th>Id</th><th>Superuser</th><th>Active</th><th style="width:90px">Actions</th></tr>';
-    table.appendChild(thead);
-    var tbody = document.createElement('tbody');
-    table.appendChild(tbody);
-    contentEl.appendChild(table);
-
-    function load() {
-      api('/resources/users?limit=50')
-        .then(function (rows) {
-          tbody.innerHTML = '';
-          countEl.innerHTML = '<strong>' + rows.length + '</strong> user' + (rows.length === 1 ? '' : 's');
-          rows.forEach(function (u) {
-            var tr = document.createElement('tr');
-            var tdE = document.createElement('td');
-            tdE.textContent = u.email;
-            var tdI = document.createElement('td');
-            tdI.textContent = u.id;
-            var tdS = document.createElement('td');
-            tdS.appendChild(iconCell(!!u.is_superuser));
-            var tdA = document.createElement('td');
-            tdA.appendChild(iconCell(u.is_active !== false));
-            var tdX = document.createElement('td');
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'btn-delete';
-            del.textContent = 'Delete';
-            del.addEventListener('click', function () {
-              api('/resources/users/' + u.id, { method: 'DELETE' })
-                .then(function () {
-                  load();
-                })
-                .catch(errToast);
-            });
-            tdX.appendChild(del);
-            tr.appendChild(tdE);
-            tr.appendChild(tdI);
-            tr.appendChild(tdS);
-            tr.appendChild(tdA);
-            tr.appendChild(tdX);
-            tbody.appendChild(tr);
-          });
-        })
-        .catch(errToast);
-    }
-
-    createBtn.addEventListener('click', function () {
-      uerr.textContent = '';
-      var newEmail = (inEmail.value || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
-        uerr.textContent = 'Enter a valid email address.';
-        return;
-      }
-      api('/resources/users', {
-        method: 'POST',
-        body: {
-          email: newEmail,
-          password: inPass.value,
-          first_name: (inFirst.value || '').trim(),
-          last_name: (inLast.value || '').trim(),
-          is_active: cbA.checked,
-          is_superuser: cbS.checked
-        }
-      })
-        .then(function () {
-          inEmail.value = '';
-          inPass.value = '';
-          inFirst.value = '';
-          inLast.value = '';
-          cbA.checked = true;
-          cbS.checked = false;
-          inPass.readOnly = true;
-          inPass.addEventListener('focus', function oncePw() {
-            inPass.readOnly = false;
-            inPass.removeEventListener('focus', oncePw);
-          });
-          load();
-        })
-        .catch(function (e) {
-          uerr.textContent = e.message || String(e);
-        });
-    });
-
-    reloadCurrent = load;
-    load();
-  }
-
-  function renderBlogs() {
-    contentEl.innerHTML = '';
-    var meta = views.blogs;
-    contentEl.appendChild(contentHeader(meta.title, meta.addBtn, 'blog'));
-    var countEl = document.createElement('div');
-    countEl.className = 'result-count';
-    contentEl.appendChild(countEl);
-    var table = document.createElement('table');
-    table.className = 'results-table';
-    var thead = document.createElement('thead');
-    thead.innerHTML = '<tr><th>Title</th><th>Id</th><th>Active</th><th style="width:90px">Actions</th></tr>';
-    table.appendChild(thead);
-    var tbody = document.createElement('tbody');
-    table.appendChild(tbody);
-    contentEl.appendChild(table);
-
-    function load() {
-      api('/resources/blogs?limit=50')
-        .then(function (rows) {
-          tbody.innerHTML = '';
-          countEl.innerHTML = '<strong>' + rows.length + '</strong> blog' + (rows.length === 1 ? '' : 's');
-          rows.forEach(function (b) {
-            var tr = document.createElement('tr');
-            var tdT = document.createElement('td');
-            tdT.textContent = b.title || '(untitled)';
-            var tdI = document.createElement('td');
-            tdI.textContent = b.id;
-            var tdA = document.createElement('td');
-            tdA.appendChild(iconCell(b.is_active !== false));
-            var tdX = document.createElement('td');
-            var del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'btn-delete';
-            del.textContent = 'Delete';
-            del.addEventListener('click', function () {
-              api('/resources/blogs/' + b.id, { method: 'DELETE' })
-                .then(function () {
-                  load();
-                })
-                .catch(errToast);
-            });
-            tdX.appendChild(del);
-            tr.appendChild(tdT);
-            tr.appendChild(tdI);
-            tr.appendChild(tdA);
-            tr.appendChild(tdX);
-            tbody.appendChild(tr);
-          });
-        })
-        .catch(errToast);
-    }
-    reloadCurrent = load;
-    load();
-  }
-
-  function render(id) {
-    if (id === 'permissions') renderPermissions();
-    else if (id === 'roles') renderRoles();
-    else if (id === 'assign') renderAssign();
-    else if (id === 'users') renderUsers();
-    else if (id === 'blogs') renderBlogs();
   }
 
   document.getElementById('loginBtn').addEventListener('click', function () {
@@ -845,35 +953,22 @@
 
   document.getElementById('bcHome').addEventListener('click', function (e) {
     e.preventDefault();
-    navigate('permissions');
+    go('/admin/');
   });
 
-  document.querySelectorAll('.sidebar-item .model-link').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      navigate(btn.getAttribute('data-view'));
-    });
-  });
-
-  document.querySelectorAll('.sidebar-item .add-link').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var kind = btn.getAttribute('data-add');
-      if (kind === 'permission' || kind === 'role' || kind === 'user' || kind === 'blog') openAdd(kind);
-    });
+  adminShell.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-nav]');
+    if (!t || !adminShell.contains(t)) return;
+    e.preventDefault();
+    go(t.getAttribute('data-nav'));
   });
 
   document.getElementById('sidebarFilter').addEventListener('input', function () {
     filterSidebar(this.value);
   });
 
-  document.getElementById('modal-close').addEventListener('click', closeModal);
-  document.getElementById('modal-cancel').addEventListener('click', closeModal);
-  modalSave.addEventListener('click', saveModal);
-  modalOverlay.addEventListener('click', function (e) {
-    if (e.target === modalOverlay) closeModal();
-  });
-  adminModalForm.addEventListener('submit', function (e) {
-    e.preventDefault();
-    saveModal();
+  window.addEventListener('popstate', function () {
+    if (!adminShell.hidden) applyRoute();
   });
 
   verifySession();
