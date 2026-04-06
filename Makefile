@@ -14,6 +14,10 @@ install: ## Install dependencies
 	go mod tidy
 	go mod download
 
+i: ## Install dependencies
+	go mod tidy
+	go mod download
+
 crud: ## Generate CRUD (repository, handlers, routes) from model. Usage: make crud MODEL=User
 	@test -n "$$MODEL" || (echo "Usage: make crud MODEL=User"; exit 1); \
 	go run ./cmd/crud "$$MODEL"
@@ -23,6 +27,10 @@ run: ## Run the application
 	go run .
 
 run-air: ## Run with live reload (Air)
+	@echo "Starting with live reload..."
+	go run github.com/air-verse/air@latest -c .air.toml
+
+run dev: ## Run with live reload (Air)
 	@echo "Starting with live reload..."
 	go run github.com/air-verse/air@latest -c .air.toml
 
