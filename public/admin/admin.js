@@ -12,6 +12,7 @@
   var modalTitle = document.getElementById('modal-title');
   var modalBody = document.getElementById('modal-body');
   var modalSave = document.getElementById('modal-save');
+  var adminModalForm = document.getElementById('admin-modal-form');
 
   var currentView = 'permissions';
   var modalKind = null;
@@ -37,7 +38,18 @@
   }
 
   function errToast(e) {
-    showToast(e.message || String(e));
+    var msg = e.message || String(e);
+    var inline = document.getElementById('modal-inline-err');
+    if (modalOverlay.classList.contains('open') && inline) {
+      inline.textContent = msg;
+      return;
+    }
+    showToast(msg);
+  }
+
+  function clearModalInlineErr() {
+    var inline = document.getElementById('modal-inline-err');
+    if (inline) inline.textContent = '';
   }
 
   function parseJwtEmail(tok) {
@@ -106,10 +118,11 @@
 
   function navigate(view) {
     if (!views[view]) return;
+    var same = currentView === view;
     currentView = view;
     setSidebarActive();
     updateBreadcrumb();
-    render(view);
+    if (!same) render(view);
   }
 
   function hideAdminUI() {
@@ -175,11 +188,36 @@
 
   function closeModal() {
     modalOverlay.classList.remove('open');
+    modalOverlay.setAttribute('aria-hidden', 'true');
     modalKind = null;
     modalBody.innerHTML = '';
+    clearModalInlineErr();
+  }
+
+  function openAdd(kind) {
+    if (kind === 'user') {
+      if (currentView !== 'users') navigate('users');
+      else {
+        setSidebarActive();
+        updateBreadcrumb();
+      }
+      requestAnimationFrame(function () {
+        var panel = document.getElementById('user-create-inline');
+        var em = document.getElementById('inline_uemail');
+        if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (em) em.focus();
+      });
+      return;
+    }
+    openModal(kind);
   }
 
   function openModal(kind) {
+    if (kind === 'user') {
+      openAdd('user');
+      return;
+    }
+    clearModalInlineErr();
     modalKind = kind;
     modalBody.innerHTML = '';
     if (kind === 'permission') {
@@ -192,15 +230,6 @@
       modalBody.innerHTML =
         '<div class="form-row"><label for="m_rname">Name</label><input id="m_rname" type="text" autocomplete="off" /></div>' +
         '<div class="form-row"><label for="m_rdesc">Description</label><input id="m_rdesc" type="text" autocomplete="off" /></div>';
-    } else if (kind === 'user') {
-      modalTitle.textContent = 'Add user';
-      modalBody.innerHTML =
-        '<div class="form-row"><label for="m_uemail">Email</label><input id="m_uemail" type="email" autocomplete="off" /></div>' +
-        '<div class="form-row"><label for="m_upass">Password</label><input id="m_upass" type="password" autocomplete="new-password" /></div>' +
-        '<div class="form-row"><label for="m_ufirst">First name</label><input id="m_ufirst" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label for="m_ulast">Last name</label><input id="m_ulast" type="text" autocomplete="off" /></div>' +
-        '<div class="form-row"><label><input type="checkbox" id="m_uactive" checked /> Active</label></div>' +
-        '<div class="form-row"><label><input type="checkbox" id="m_usuper" /> Superuser</label></div>';
     } else if (kind === 'blog') {
       modalTitle.textContent = 'Add blog';
       modalBody.innerHTML =
@@ -213,14 +242,15 @@
       return;
     }
     modalOverlay.classList.add('open');
+    modalOverlay.setAttribute('aria-hidden', 'false');
   }
 
   function saveModal() {
     if (!modalKind) return;
+    clearModalInlineErr();
     var k = modalKind;
     var after = function () {
       closeModal();
-      showToast('Saved.');
       if (reloadCurrent) reloadCurrent();
     };
     if (k === 'permission') {
@@ -233,20 +263,6 @@
       var name = (document.getElementById('m_rname') || {}).value;
       var rdesc = (document.getElementById('m_rdesc') || {}).value;
       api('/roles', { method: 'POST', body: { name: (name || '').trim(), description: (rdesc || '').trim() } })
-        .then(after)
-        .catch(errToast);
-    } else if (k === 'user') {
-      api('/resources/users', {
-        method: 'POST',
-        body: {
-          email: (document.getElementById('m_uemail').value || '').trim(),
-          password: document.getElementById('m_upass').value,
-          first_name: (document.getElementById('m_ufirst').value || '').trim(),
-          last_name: (document.getElementById('m_ulast').value || '').trim(),
-          is_active: document.getElementById('m_uactive').checked,
-          is_superuser: document.getElementById('m_usuper').checked
-        }
-      })
         .then(after)
         .catch(errToast);
     } else if (k === 'blog') {
@@ -276,7 +292,7 @@
       btn.className = 'btn-add';
       btn.textContent = addBtnText;
       btn.addEventListener('click', function () {
-        openModal(addKind);
+        openAdd(addKind);
       });
       row.appendChild(btn);
     }
@@ -320,7 +336,6 @@
               api('/permissions/' + encodeURIComponent(p.codename), { method: 'DELETE' })
                 .then(function () {
                   load();
-                  showToast('Permission deleted.');
                 })
                 .catch(errToast);
             });
@@ -373,7 +388,6 @@
               api('/roles/' + encodeURIComponent(r.name), { method: 'DELETE' })
                 .then(function () {
                   load();
-                  showToast('Role deleted.');
                 })
                 .catch(errToast);
             });
@@ -481,7 +495,6 @@
 
     function ok() {
       setStatus(msg, 'Done.', 'ok');
-      showToast('Done.');
     }
     function err(e) {
       setStatus(msg, e.message || String(e), 'err');
@@ -550,6 +563,86 @@
     contentEl.innerHTML = '';
     var meta = views.users;
     contentEl.appendChild(contentHeader(meta.title, meta.addBtn, 'user'));
+
+    var createPanel = document.createElement('div');
+    createPanel.id = 'user-create-inline';
+    createPanel.className = 'assign-panel';
+    var uh3 = document.createElement('h3');
+    uh3.textContent = 'Add user';
+    createPanel.appendChild(uh3);
+    var uerr = document.createElement('p');
+    uerr.id = 'inline_u_err';
+    uerr.className = 'modal-inline-err';
+    uerr.style.margin = '0 0 8px 0';
+    uerr.style.padding = '0';
+    createPanel.appendChild(uerr);
+    function row(labelText, input) {
+      var fr = document.createElement('div');
+      fr.className = 'form-row';
+      var lab = document.createElement('label');
+      lab.textContent = labelText;
+      fr.appendChild(lab);
+      fr.appendChild(input);
+      return fr;
+    }
+    var inEmail = document.createElement('input');
+    inEmail.id = 'inline_uemail';
+    inEmail.type = 'text';
+    inEmail.setAttribute('inputmode', 'email');
+    inEmail.spellcheck = false;
+    inEmail.setAttribute('autocomplete', 'off');
+    createPanel.appendChild(row('Email', inEmail));
+    var inPass = document.createElement('input');
+    inPass.id = 'inline_upass';
+    inPass.type = 'text';
+    inPass.className = 'admin-pass-mask';
+    inPass.setAttribute('aria-label', 'Password');
+    inPass.setAttribute('autocomplete', 'off');
+    inPass.spellcheck = false;
+    inPass.readOnly = true;
+    inPass.addEventListener('focus', function once() {
+      inPass.readOnly = false;
+      inPass.removeEventListener('focus', once);
+    });
+    createPanel.appendChild(row('Password', inPass));
+    var inFirst = document.createElement('input');
+    inFirst.id = 'inline_ufirst';
+    inFirst.type = 'text';
+    inFirst.setAttribute('autocomplete', 'off');
+    createPanel.appendChild(row('First name', inFirst));
+    var inLast = document.createElement('input');
+    inLast.id = 'inline_ulast';
+    inLast.type = 'text';
+    inLast.setAttribute('autocomplete', 'off');
+    createPanel.appendChild(row('Last name', inLast));
+    var act = document.createElement('label');
+    var cbA = document.createElement('input');
+    cbA.type = 'checkbox';
+    cbA.id = 'inline_uactive';
+    cbA.checked = true;
+    act.appendChild(cbA);
+    act.appendChild(document.createTextNode(' Active'));
+    var frA = document.createElement('div');
+    frA.className = 'form-row';
+    frA.appendChild(act);
+    createPanel.appendChild(frA);
+    var sup = document.createElement('label');
+    var cbS = document.createElement('input');
+    cbS.type = 'checkbox';
+    cbS.id = 'inline_usuper';
+    sup.appendChild(cbS);
+    sup.appendChild(document.createTextNode(' Superuser'));
+    var frS = document.createElement('div');
+    frS.className = 'form-row';
+    frS.appendChild(sup);
+    createPanel.appendChild(frS);
+    var createBtn = document.createElement('button');
+    createBtn.type = 'button';
+    createBtn.className = 'btn-add';
+    createBtn.textContent = 'Create user';
+    createPanel.appendChild(createBtn);
+    contentEl.appendChild(createPanel);
+
     var countEl = document.createElement('div');
     countEl.className = 'result-count';
     contentEl.appendChild(countEl);
@@ -584,11 +677,9 @@
             del.className = 'btn-delete';
             del.textContent = 'Delete';
             del.addEventListener('click', function () {
-              if (!window.confirm('Delete ' + u.email + '?')) return;
               api('/resources/users/' + u.id, { method: 'DELETE' })
                 .then(function () {
                   load();
-                  showToast('User deleted.');
                 })
                 .catch(errToast);
             });
@@ -603,6 +694,44 @@
         })
         .catch(errToast);
     }
+
+    createBtn.addEventListener('click', function () {
+      uerr.textContent = '';
+      var newEmail = (inEmail.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        uerr.textContent = 'Enter a valid email address.';
+        return;
+      }
+      api('/resources/users', {
+        method: 'POST',
+        body: {
+          email: newEmail,
+          password: inPass.value,
+          first_name: (inFirst.value || '').trim(),
+          last_name: (inLast.value || '').trim(),
+          is_active: cbA.checked,
+          is_superuser: cbS.checked
+        }
+      })
+        .then(function () {
+          inEmail.value = '';
+          inPass.value = '';
+          inFirst.value = '';
+          inLast.value = '';
+          cbA.checked = true;
+          cbS.checked = false;
+          inPass.readOnly = true;
+          inPass.addEventListener('focus', function oncePw() {
+            inPass.readOnly = false;
+            inPass.removeEventListener('focus', oncePw);
+          });
+          load();
+        })
+        .catch(function (e) {
+          uerr.textContent = e.message || String(e);
+        });
+    });
+
     reloadCurrent = load;
     load();
   }
@@ -642,11 +771,9 @@
             del.className = 'btn-delete';
             del.textContent = 'Delete';
             del.addEventListener('click', function () {
-              if (!window.confirm('Delete this blog?')) return;
               api('/resources/blogs/' + b.id, { method: 'DELETE' })
                 .then(function () {
                   load();
-                  showToast('Blog deleted.');
                 })
                 .catch(errToast);
             });
@@ -730,7 +857,7 @@
   document.querySelectorAll('.sidebar-item .add-link').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var kind = btn.getAttribute('data-add');
-      if (kind === 'permission' || kind === 'role' || kind === 'user' || kind === 'blog') openModal(kind);
+      if (kind === 'permission' || kind === 'role' || kind === 'user' || kind === 'blog') openAdd(kind);
     });
   });
 
@@ -743,6 +870,10 @@
   modalSave.addEventListener('click', saveModal);
   modalOverlay.addEventListener('click', function (e) {
     if (e.target === modalOverlay) closeModal();
+  });
+  adminModalForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    saveModal();
   });
 
   verifySession();

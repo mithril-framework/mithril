@@ -401,16 +401,19 @@ body {
 #assignMsg.err { color: var(--red); }
 #assignMsg.ok { color: var(--green); }
 
-/* MODAL */
+/* MODAL (div overlay — avoids native dialog top-layer bugs in embedded Chromium / IDE browsers) */
 .modal-overlay {
   display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.45);
+  position: fixed;
+  inset: 0;
   z-index: 500;
   align-items: center;
   justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
 }
-.modal-overlay.open { display: flex; }
+.modal-overlay.open {
+  display: flex;
+}
 .modal {
   background: #fff;
   width: 480px;
@@ -445,6 +448,20 @@ body {
 }
 .modal-close:hover { color: #fff; }
 .modal-body { padding: 20px 16px; }
+.modal-inline-err {
+  margin: 0 16px;
+  padding-top: 12px;
+  font-size: 12px;
+  color: var(--red);
+  min-height: 0;
+}
+.modal-inline-err:empty { display: none; }
+
+/* Looks like a password field but avoids type=password (fewer browser save-password / side-panel quirks). */
+.admin-pass-mask {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
 .form-row {
   display: flex;
   flex-direction: column;
