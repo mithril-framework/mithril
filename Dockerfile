@@ -27,6 +27,9 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 COPY --from=builder /app/binary ./app
 
+# Default process timezone; override with -e TZ=... or .env when copied/mounted.
+ENV TZ=UTC
+
 RUN chown -R appuser:appgroup /app
 USER appuser
 

@@ -10,6 +10,7 @@ import (
 
 	"mithril-rev/database/repositories"
 	"mithril-rev/internal/db"
+	"mithril-rev/internal/timezone"
 	"mithril-rev/routes"
 
 	"github.com/bytedance/sonic"
@@ -33,6 +34,9 @@ var userRepo *repositories.UserRepository
 func main() {
 	// Seed is manual-only via "make seed". Do not run seed from this process or on reload.
 	loadEnvFile(".env")
+	if err := timezone.InitFromEnv(); err != nil {
+		log.Fatal(err)
+	}
 
 	if os.Getenv("LIST_ROUTES") == "1" {
 		app := setupApp(nil, nil, getEnv("JWT_SECRET", ""))

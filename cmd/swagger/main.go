@@ -14,6 +14,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"mithril-rev/internal/timezone"
 )
 
 const (
@@ -26,6 +28,10 @@ const (
 
 func main() {
 	loadEnvFile(".env")
+	if err := timezone.InitFromEnv(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {

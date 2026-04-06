@@ -12,10 +12,14 @@ import (
 
 	"mithril-rev/internal/db"
 	"mithril-rev/internal/db/backup"
+	"mithril-rev/internal/timezone"
 )
 
 func main() {
 	loadEnvFile(".env")
+	if err := timezone.InitFromEnv(); err != nil {
+		log.Fatal(err)
+	}
 
 	backupCmd := flag.NewFlagSet("backup", flag.ExitOnError)
 	backupSchemaOnly := backupCmd.Bool("schema-only", false, "Backup schema only")
