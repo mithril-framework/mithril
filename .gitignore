@@ -3,6 +3,7 @@ bin/
 # .env
 .seed-allowed
 # .admin-panel-enabled
+# .dbms-enabled
 *.exe
 coverage.out
 coverage.html

@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
+.PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable dbms dbms-enable dbms-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
 # Default target
 help: ## Show this help message
@@ -229,6 +229,16 @@ admin-enable: ## Enable admin panel (creates .admin-panel-enabled; or set ENABLE
 
 admin-disable: ## Disable admin panel (removes sentinel file; env ENABLE_ADMIN_PANEL still respected if set)
 	@rm -f .admin-panel-enabled && echo "Admin panel sentinel removed. Unset ENABLE_ADMIN_PANEL if set in .env."
+
+dbms: ## Run PostgreSQL web UI (make dbms-enable or ENABLE_DBMS=true; optional DBMS_ADDR=:5050)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	go run ./cmd/dbms
+
+dbms-enable: ## Enable DBMS (creates .dbms-enabled; or set ENABLE_DBMS=true)
+	@touch .dbms-enabled && echo "DBMS enabled (sentinel .dbms-enabled). Run: make dbms"
+
+dbms-disable: ## Disable DBMS (removes sentinel; unset ENABLE_DBMS in .env if set)
+	@rm -f .dbms-enabled && echo "DBMS sentinel removed. Unset ENABLE_DBMS if set in .env."
 
 # ACL CLI — loads .env when present. Examples: make acl ARGS='superuser set admin@example.com'
 acl: ## Run ACL CLI: make acl ARGS='superuser set EMAIL' | ARGS='role create NAME' | ARGS='list permissions'

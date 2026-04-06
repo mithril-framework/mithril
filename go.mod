@@ -1,6 +1,6 @@
 module mithril-rev
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/bytedance/sonic v1.15.0
@@ -10,7 +10,7 @@ require (
 	github.com/gofiber/template/jet/v2 v2.1.13
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.1
 	github.com/vgarvardt/pgx-google-uuid/v5 v5.6.0
 	golang.org/x/crypto v0.48.0
 	golang.org/x/term v0.40.0
