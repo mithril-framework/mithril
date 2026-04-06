@@ -3,122 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin — Mithril Rev</title>
+  <title>Administration — Mithril Rev</title>
   <link rel="stylesheet" href="/admin/admin.css" />
 </head>
 <body>
-  <header class="top">
-    <h1>Admin</h1>
-    <p class="hint">Everyone must sign in. Use email/password (same as <code>/auth/login</code>) or paste an access token. The API requires superuser or <code>admin.access</code>.</p>
-  </header>
 
-  <section class="card" id="loginCard">
+<div id="loginShell">
+  <div class="login-brand"><span>Mithril Rev</span> administration</div>
+  <div class="signin-card">
     <h2>Sign in</h2>
-    <div class="grid login-grid">
-      <label>Email <input type="email" id="loginEmail" autocomplete="username" /></label>
-      <label>Password <input type="password" id="loginPassword" autocomplete="current-password" /></label>
-      <button type="button" id="loginBtn" class="btn-primary">Sign in</button>
+    <p class="signin-hint">Use email and password (same as <code>/auth/login</code>) or paste an access token. You need superuser or <code>admin.access</code>.</p>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" autocomplete="username" />
+    <label for="loginPassword">Password</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" />
+    <div class="signin-actions">
+      <button type="button" id="loginBtn" class="btn-signin">Sign in</button>
     </div>
-    <p class="divider">or paste token</p>
-    <label>Access token <input type="password" id="token" autocomplete="off" placeholder="eyJ…" /></label>
-    <div class="row">
-      <button type="button" id="saveToken" class="btn-primary">Use token</button>
-      <button type="button" id="clearToken">Sign out</button>
+    <p class="signin-divider">or paste token</p>
+    <label for="token">Access token</label>
+    <input type="password" id="token" autocomplete="off" placeholder="eyJ…" />
+    <div class="signin-actions">
+      <button type="button" id="saveToken" class="btn-signin">Use token</button>
+      <button type="button" id="clearToken" class="btn-muted">Sign out</button>
     </div>
-    <p id="sessionStatus" class="status"></p>
-  </section>
+    <p id="sessionStatus"></p>
+  </div>
+</div>
 
-  <div id="adminApp" class="admin-app" hidden>
-    <nav class="tabs" id="tabs"></nav>
-    <main id="view"></main>
+<div id="adminShell" hidden>
+  <div id="header">
+    <h1><span>Mithril Rev</span> administration</h1>
+    <div id="user-tools">
+      WELCOME, <strong id="welcomeName">ADMIN</strong>.
+      <span class="sep">&nbsp;</span>
+      <a href="/" target="_blank" rel="noopener">VIEW SITE</a>
+      <span class="sep">/</span>
+      <button type="button" class="linkish" id="headerSignOut">LOG OUT</button>
+    </div>
   </div>
 
-  <template id="tpl-permissions">
-    <section class="card">
-      <h2>Permissions</h2>
-      <div class="row">
-        <input id="pCodename" placeholder="codename" />
-        <input id="pDesc" placeholder="description" />
-        <button type="button" id="pCreate">Create</button>
+  <div id="breadcrumbs">
+    <a href="#" id="bcHome">Home</a> <span class="sep">›</span>
+    <span id="bcRest"></span>
+  </div>
+
+  <div id="container">
+    <div id="sidebar">
+      <div id="sidebar-search">
+        <input type="text" id="sidebarFilter" placeholder="Start typing to filter..." />
       </div>
-      <ul id="pList" class="list"></ul>
-    </section>
-  </template>
-
-  <template id="tpl-roles">
-    <section class="card">
-      <h2>Roles</h2>
-      <div class="row">
-        <input id="rName" placeholder="name" />
-        <input id="rDesc" placeholder="description" />
-        <button type="button" id="rCreate">Create</button>
+      <div class="sidebar-section">Authentication and authorization</div>
+      <div class="sidebar-item" data-label="permissions">
+        <button type="button" class="model-link" data-view="permissions">Permissions</button>
+        <button type="button" class="add-link" data-add="permission">Add</button>
       </div>
-      <ul id="rList" class="list"></ul>
-    </section>
-  </template>
-
-  <template id="tpl-assign">
-    <section class="card">
-      <h2>Assign / revoke</h2>
-      <fieldset>
-        <legend>Role ↔ user</legend>
-        <input id="aUserEmail" placeholder="user email" />
-        <input id="aRoleName" placeholder="role name" />
-        <button type="button" id="aRoleAssign">Assign role</button>
-        <button type="button" id="aRoleRevoke">Revoke role</button>
-      </fieldset>
-      <fieldset>
-        <legend>Permission ↔ role</legend>
-        <input id="apRole" placeholder="role name" />
-        <input id="apPerm" placeholder="permission codename" />
-        <button type="button" id="apAssign">Assign</button>
-        <button type="button" id="apRevoke">Revoke</button>
-      </fieldset>
-      <fieldset>
-        <legend>Permission ↔ user (direct)</legend>
-        <input id="upUser" placeholder="user email" />
-        <input id="upPerm" placeholder="permission codename" />
-        <button type="button" id="upAssign">Assign</button>
-        <button type="button" id="upRevoke">Revoke</button>
-      </fieldset>
-      <p id="assignMsg" class="status"></p>
-    </section>
-  </template>
-
-  <template id="tpl-users">
-    <section class="card">
-      <h2>Users</h2>
-      <button type="button" id="uReload">Reload list</button>
-      <ul id="uList" class="list"></ul>
-      <h3>Create user</h3>
-      <div class="grid">
-        <input id="uEmail" placeholder="email" />
-        <input id="uPass" type="password" placeholder="password" />
-        <input id="uFirst" placeholder="first name" />
-        <input id="uLast" placeholder="last name" />
-        <label><input type="checkbox" id="uActive" checked /> active</label>
-        <label><input type="checkbox" id="uSuper" /> superuser</label>
-        <button type="button" id="uCreate">Create</button>
+      <div class="sidebar-item" data-label="roles">
+        <button type="button" class="model-link" data-view="roles">Roles</button>
+        <button type="button" class="add-link" data-add="role">Add</button>
       </div>
-    </section>
-  </template>
-
-  <template id="tpl-blogs">
-    <section class="card">
-      <h2>Blogs</h2>
-      <button type="button" id="bReload">Reload list</button>
-      <ul id="bList" class="list"></ul>
-      <h3>Create blog</h3>
-      <div class="grid">
-        <input id="bTitle" placeholder="title" />
-        <textarea id="bContent" placeholder="content" rows="4"></textarea>
-        <input id="bAuthor" placeholder="author user id (uuid)" />
-        <label><input type="checkbox" id="bActive" checked /> active</label>
-        <button type="button" id="bCreate">Create</button>
+      <div class="sidebar-item" data-label="assign">
+        <button type="button" class="model-link" data-view="assign">Assign</button>
       </div>
-    </section>
-  </template>
+      <div class="sidebar-section">Models</div>
+      <div class="sidebar-item" data-label="users">
+        <button type="button" class="model-link" data-view="users">Users</button>
+        <button type="button" class="add-link" data-add="user">Add</button>
+      </div>
+      <div class="sidebar-item" data-label="blogs">
+        <button type="button" class="model-link" data-view="blogs">Blogs</button>
+        <button type="button" class="add-link" data-add="blog">Add</button>
+      </div>
+    </div>
 
-  <script src="/admin/admin.js"></script>
+    <div id="content"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <span id="modal-title">Add</span>
+      <button type="button" class="modal-close" id="modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn-cancel" id="modal-cancel">Cancel</button>
+      <button type="button" class="btn-save" id="modal-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/admin/admin.js"></script>
 </body>
 </html>
