@@ -27,8 +27,10 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 COPY --from=builder /app/binary ./app
 
-# Default process timezone; override with -e TZ=... or .env when copied/mounted.
-ENV TZ=UTC
+# IANA zone; set at build: docker build --build-arg TZ=America/New_York .
+# Override at run: docker run -e TZ=... (or mount .env; app loads it if TZ unset).
+ARG TZ=UTC
+ENV TZ=$TZ
 
 RUN chown -R appuser:appgroup /app
 USER appuser
