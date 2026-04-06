@@ -1,0 +1,9 @@
+i need a acl role permission for my app like the way django has it by default . 
+- can create and remove superuser, role, permission using make command and programmaticly
+- can assign and revoke permissions to roles and users using make command and programmaticly
+- can assign and revoke role to a user using make command and programmaticly
+- middlewares and helper functions for check this acl role permission logics 
+- middlewares and helper functions for check this acl role permission logics if a user has access to a database entity (by user_id field which is uuid )
+- i will use this acl things using cli and functions, but also need a super simple html pure css and pure js (no libraries) admin panel for this app to : crud permissions, crud role, crud users, assign/revoke roles and permissions to users. admin panek must be able to be enabled and disabled using make commands . also admin panel must crud for all database tables that have models in @models  . 
+
+-admin routes should be seprate than other existing api and public routes
