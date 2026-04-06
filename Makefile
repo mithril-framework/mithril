@@ -26,13 +26,13 @@ run: ## Run the application
 	@echo "Starting application..."
 	go run .
 
-run-air: ## Run with live reload (Air)
-	@echo "Starting with live reload..."
-	go run github.com/air-verse/air@latest -c .air.toml
-
 run dev: ## Run with live reload (Air)
 	@echo "Starting with live reload..."
 	go run github.com/air-verse/air@latest -c .air.toml
+
+run docker: docker-build ## Build Docker image and run container (port 4000)
+	@echo "Running $(APP_NAME):latest..."
+	docker run --rm -p 4000:4000 $(APP_NAME):latest
 
 build: ## Build the application
 	@echo "Building application..."
@@ -46,9 +46,6 @@ docker-build: ## Build Docker image (tag: $(APP_NAME):latest)
 	@echo "Building Docker image $(APP_NAME):latest..."
 	docker build -t $(APP_NAME):latest .
 
-docker-run: docker-build ## Build Docker image and run container (port 4000)
-	@echo "Running $(APP_NAME):latest..."
-	docker run --rm -p 4000:4000 $(APP_NAME):latest
 
 DC_FILE := infrastructure/docker-compose.services.yml
 # Per-service: make dc CMD=install SVC=postgres  or  make dc-install-postgres
