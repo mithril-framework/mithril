@@ -1,4 +1,5 @@
 -- +goose Up
+-- Schema is defined only here (and sibling .sql files). Goose does not sync database/models/*.go — add ALTER/CREATE in SQL, then migrate-up.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE permissions (
