@@ -1,8 +1,9 @@
 .git
 .github
 old
-bin
+bin/
 tmp
+database/backups/*.gz
 *.md
 .env
 .env.*

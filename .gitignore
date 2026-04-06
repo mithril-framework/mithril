@@ -1,5 +1,7 @@
 tmp/
-bin/
+# Binaries under bin/ (keep empty dir via .gitkeep)
+bin/*
+!bin/.gitkeep
 # .env
 .seed-allowed
 # .admin-panel-enabled
@@ -10,5 +12,5 @@ coverage.html
 
 # Database backup artifacts (directory kept via database/backups/.gitkeep)
 database/backups/*.sql
-database/backups/*.sql.gz
+database/backups/*.gz
 database/backups/*.dump
