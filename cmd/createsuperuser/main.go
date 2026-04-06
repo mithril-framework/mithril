@@ -152,19 +152,30 @@ func promptPasswordWithPolicy(sc *bufio.Scanner) (string, bool) {
 
 func requireACLSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	var ok bool
+	// Use pg_catalog + pg_table_is_visible so we detect the same `users` row type this session would use in SQL.
+	// information_schema + broad schema filters can miss or mismatch search_path vs goose (public).
 	err := pool.QueryRow(ctx, `
 		SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = current_schema()
-			  AND table_name = 'users'
-			  AND column_name = 'is_superuser'
+			SELECT 1
+			FROM pg_catalog.pg_attribute a
+			INNER JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
+			WHERE pg_catalog.pg_table_is_visible(c.oid)
+			  AND c.relkind IN ('r', 'p')
+			  AND c.relname = 'users'
+			  AND a.attname = 'is_superuser'
+			  AND a.attnum > 0
+			  AND NOT a.attisdropped
 		)
 	`).Scan(&ok)
 	if err != nil {
 		return fmt.Errorf("database schema check: %w", err)
 	}
 	if !ok {
-		return fmt.Errorf("database is missing ACL schema (e.g. users.is_superuser); run: make migrate-up")
+		var dbName, searchPath string
+		_ = pool.QueryRow(ctx, `SELECT current_database(), current_setting('search_path')`).Scan(&dbName, &searchPath)
+		return fmt.Errorf("connected database %q (search_path=%q) has no visible table users with column is_superuser.\n"+
+			"If goose shows migrations applied, confirm DATABASE_URL / DB_* matches the DB you migrated (make migrate-status).\n"+
+			"Otherwise run: make migrate-up", dbName, searchPath)
 	}
 	return nil
 }
