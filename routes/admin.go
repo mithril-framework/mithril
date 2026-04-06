@@ -18,8 +18,13 @@ func SetupAdminRoutes(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories
 	blogRepo := repositories.NewBlogRepository(pool)
 	h := admin.NewHandlers(aclRepo, userRepo, blogRepo)
 
-	app.Get("/admin", func(c *fiber.Ctx) error {
-		return c.Redirect("/admin/")
+	// Only redirect exact /admin → /admin/. Do not use Get("/admin") alone: with default routing
+	// it can also match /admin/, causing an infinite redirect loop (ERR_TOO_MANY_REDIRECTS).
+	app.Use("/admin", func(c *fiber.Ctx) error {
+		if c.Method() == fiber.MethodGet && c.Path() == "/admin" {
+			return c.Redirect("/admin/", fiber.StatusFound)
+		}
+		return c.Next()
 	})
 
 	app.Static("/admin", "./public/admin", fiber.Static{
