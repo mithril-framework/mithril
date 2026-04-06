@@ -1,6 +1,6 @@
 # mithril-rev Makefile
 
-.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
+.PHONY: help init install run run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
 # Default target
 help: ## Show this help message
@@ -213,6 +213,10 @@ decode: ## Base64-decode (e.g. make decode hello  or  make decode S='aGVsbG8=')
 seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrate-*.
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	touch .seed-allowed && ALLOW_SEED=1 go run ./cmd/seed; rm -f .seed-allowed
+
+createsuperuser: ## Interactive Django-style superuser (email, password x2, names; weak-pw confirm)
+	@[ -f .env ] && set -a && . ./.env && set +a; \
+	go run ./cmd/createsuperuser
 
 admin-enable: ## Enable admin panel (creates .admin-panel-enabled; or set ENABLE_ADMIN_PANEL=true)
 	@touch .admin-panel-enabled && echo "Admin panel enabled (sentinel .admin-panel-enabled). Restart the app."
