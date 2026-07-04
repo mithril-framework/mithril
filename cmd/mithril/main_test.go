@@ -42,7 +42,7 @@ func TestDefaultModulePathGitHubUser(t *testing.T) {
 }
 
 func TestVersionConstant(t *testing.T) {
-	if version.Version != "1.0.2" {
-		t.Fatalf("expected 1.0.2, got %q", version.Version)
+	if version.Version != "1.1.0" {
+		t.Fatalf("expected 1.1.0, got %q", version.Version)
 	}
 }

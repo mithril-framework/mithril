@@ -1,8 +1,8 @@
 package routes
 
 import (
-	jwtware "github.com/gofiber/contrib/jwt"
-	"github.com/gofiber/fiber/v2"
+	jwtware "github.com/gofiber/contrib/v3/jwt"
+	"github.com/gofiber/fiber/v3"
 	"github.com/mithril-framework/mithril/internal/auth"
 )
 

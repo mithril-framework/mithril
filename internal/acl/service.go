@@ -7,7 +7,7 @@ import (
 	"github.com/mithril-framework/mithril/database/models"
 	"github.com/mithril-framework/mithril/database/repositories"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ func NewService(r *repositories.ACLRepository) *Service {
 	return &Service{repo: r}
 }
 
-func (s *Service) cachedEffectivePerms(ctx context.Context, c *fiber.Ctx, userID uuid.UUID) (map[string]struct{}, error) {
+func (s *Service) cachedEffectivePerms(ctx context.Context, c fiber.Ctx, userID uuid.UUID) (map[string]struct{}, error) {
 	if c != nil {
 		if v := c.Locals(localEffectivePermsKey); v != nil {
 			if m, ok := v.(map[string]struct{}); ok {
@@ -46,7 +46,7 @@ func (s *Service) cachedEffectivePerms(ctx context.Context, c *fiber.Ctx, userID
 
 // HasPermission returns true if the user has the codename (roles + direct) or is superuser.
 // jwtIsSuperuser comes from signed JWT claims; when true, DB is not queried for superuser.
-func (s *Service) HasPermission(ctx context.Context, c *fiber.Ctx, userID uuid.UUID, codename string, jwtIsSuperuser bool) (bool, error) {
+func (s *Service) HasPermission(ctx context.Context, c fiber.Ctx, userID uuid.UUID, codename string, jwtIsSuperuser bool) (bool, error) {
 	if s == nil || s.repo == nil {
 		return false, nil
 	}
@@ -77,7 +77,7 @@ func (s *Service) HasRole(ctx context.Context, userID uuid.UUID, roleName string
 }
 
 // CanAccessOwnedResource is true for superuser, or holders of manageAnyCodename, or when currentUserID equals ownerUserID.
-func (s *Service) CanAccessOwnedResource(ctx context.Context, c *fiber.Ctx, currentUserID, ownerUserID uuid.UUID, manageAnyCodename string, jwtIsSuperuser bool) (bool, error) {
+func (s *Service) CanAccessOwnedResource(ctx context.Context, c fiber.Ctx, currentUserID, ownerUserID uuid.UUID, manageAnyCodename string, jwtIsSuperuser bool) (bool, error) {
 	if s == nil || s.repo == nil {
 		return currentUserID == ownerUserID, nil
 	}

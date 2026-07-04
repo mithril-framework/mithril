@@ -5,8 +5,8 @@ import (
 	"github.com/mithril-framework/mithril/internal/acl"
 	"github.com/mithril-framework/mithril/internal/auth"
 
-	jwtware "github.com/gofiber/contrib/jwt"
-	"github.com/gofiber/fiber/v2"
+	jwtware "github.com/gofiber/contrib/v3/jwt"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -14,7 +14,7 @@ import (
 func RegisterAll(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecret string) {
 	jwtConfig := jwtware.Config{
 		SigningKey: jwtware.SigningKey{Key: []byte(jwtSecret)},
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized", "message": err.Error()})
 		},
 	}

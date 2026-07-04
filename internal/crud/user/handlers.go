@@ -7,7 +7,7 @@ import (
 	"github.com/mithril-framework/mithril/database/repositories"
 	"github.com/mithril-framework/mithril/internal/acl"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -36,13 +36,13 @@ func userPublic(u *models.User) fiber.Map {
 }
 
 // List returns paginated users (requires users.view via middleware).
-func (h *Handlers) List(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+func (h *Handlers) List(c fiber.Ctx) error {
+	limit := fiber.Query[int](c, "limit", 20)
+	offset := fiber.Query[int](c, "offset", 0)
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	list, err := h.repo.List(c.Context(), limit, offset)
+	list, err := h.repo.List(c, limit, offset)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -54,12 +54,12 @@ func (h *Handlers) List(c *fiber.Ctx) error {
 }
 
 // Get returns one user. Callers may read themselves without users.view.
-func (h *Handlers) Get(c *fiber.Ctx) error {
+func (h *Handlers) Get(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	m, err := h.repo.GetByID(c.Context(), id)
+	m, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -69,7 +69,7 @@ func (h *Handlers) Get(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 		if self != id {
-			ok, err := h.acl.HasPermission(c.Context(), c, self, "users.view", acl.IsSuperuserLocal(c))
+			ok, err := h.acl.HasPermission(c, c, self, "users.view", acl.IsSuperuserLocal(c))
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 			}
@@ -82,24 +82,24 @@ func (h *Handlers) Get(c *fiber.Ctx) error {
 }
 
 // Create creates a user (requires users.add via middleware).
-func (h *Handlers) Create(c *fiber.Ctx) error {
+func (h *Handlers) Create(c fiber.Ctx) error {
 	var m models.User
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	if err := h.repo.Create(c.Context(), &m); err != nil {
+	if err := h.repo.Create(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(http.StatusCreated).JSON(userPublic(&m))
 }
 
 // Update updates a user by id. Self-service or users.change.
-func (h *Handlers) Update(c *fiber.Ctx) error {
+func (h *Handlers) Update(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	existing, err := h.repo.GetByID(c.Context(), id)
+	existing, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -109,7 +109,7 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
 		if self != id {
-			ok, err := h.acl.HasPermission(c.Context(), c, self, "users.change", acl.IsSuperuserLocal(c))
+			ok, err := h.acl.HasPermission(c, c, self, "users.change", acl.IsSuperuserLocal(c))
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 			}
@@ -119,7 +119,7 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 		}
 	}
 	var m models.User
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	m.ID = id
@@ -131,16 +131,16 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 	}
 	if h.acl != nil {
 		self, _ := acl.CurrentUserID(c)
-		canElevate, _ := h.acl.HasPermission(c.Context(), c, self, "users.change", acl.IsSuperuserLocal(c))
-		sup, _ := h.acl.Repo().UserIsSuperuser(c.Context(), self)
+		canElevate, _ := h.acl.HasPermission(c, c, self, "users.change", acl.IsSuperuserLocal(c))
+		sup, _ := h.acl.Repo().UserIsSuperuser(c, self)
 		if !canElevate && !sup && !acl.IsSuperuserLocal(c) {
 			m.IsSuperuser = existing.IsSuperuser
 		}
 	}
-	if err := h.repo.Update(c.Context(), &m); err != nil {
+	if err := h.repo.Update(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	updated, err := h.repo.GetByID(c.Context(), id)
+	updated, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -148,13 +148,15 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 }
 
 // Delete deletes a user by id (requires users.delete via middleware).
-func (h *Handlers) Delete(c *fiber.Ctx) error {
+func (h *Handlers) Delete(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	if err := h.repo.Delete(c.Context(), id); err != nil {
+	if err := h.repo.Delete(c, id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// fiber:context-methods migrated

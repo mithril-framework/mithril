@@ -5,7 +5,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // PaginationMeta holds pagination metadata.
@@ -29,8 +29,8 @@ type PaginationLinks struct {
 
 // PaginationResponse combines data with pagination and links.
 type PaginationResponse struct {
-	Data       interface{}    `json:"data"`
-	Pagination PaginationMeta `json:"pagination"`
+	Data       interface{}     `json:"data"`
+	Pagination PaginationMeta  `json:"pagination"`
 	Links      PaginationLinks `json:"links"`
 }
 
@@ -77,7 +77,7 @@ func GeneratePaginationLinks(baseURL string, meta PaginationMeta) PaginationLink
 }
 
 // ParsePaginationParams reads page and per_page from Fiber query (defaults 1, 15; per_page capped at 100).
-func ParsePaginationParams(c *fiber.Ctx) (page, perPage int) {
+func ParsePaginationParams(c fiber.Ctx) (page, perPage int) {
 	page, _ = strconv.Atoi(c.Query("page", "1"))
 	perPage, _ = strconv.Atoi(c.Query("per_page", "15"))
 	if page < 1 {

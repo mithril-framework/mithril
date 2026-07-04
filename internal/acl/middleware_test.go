@@ -4,13 +4,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
 func TestRequirePermissionNilService(t *testing.T) {
 	app := fiber.New()
-	app.Get("/protected", RequirePermission(nil, "users.view"), func(c *fiber.Ctx) error {
+	app.Get("/protected", RequirePermission(nil, "users.view"), func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -28,10 +28,10 @@ func TestRequirePermissionDenied(t *testing.T) {
 	svc := NewService(nil)
 	app := fiber.New()
 	uid := uuid.New()
-	app.Get("/protected", func(c *fiber.Ctx) error {
+	app.Get("/protected", func(c fiber.Ctx) error {
 		c.Locals(LocalUserID, uid.String())
 		return c.Next()
-	}, RequirePermission(svc, "users.view"), func(c *fiber.Ctx) error {
+	}, RequirePermission(svc, "users.view"), func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -48,7 +48,7 @@ func TestRequirePermissionDenied(t *testing.T) {
 func TestJWTClaimsMiddlewareMissingToken(t *testing.T) {
 	app := fiber.New()
 	app.Use(JWTClaimsMiddleware())
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
@@ -65,7 +65,7 @@ func TestJWTClaimsMiddlewareMissingToken(t *testing.T) {
 func TestCurrentUserIDFromLocals(t *testing.T) {
 	app := fiber.New()
 	uid := uuid.New()
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/", func(c fiber.Ctx) error {
 		c.Locals(LocalUserID, uid.String())
 		got, err := CurrentUserID(c)
 		if err != nil {

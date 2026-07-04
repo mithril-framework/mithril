@@ -3,12 +3,12 @@ package admin
 import (
 	"errors"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // respondDBErr maps common PostgreSQL errors to clearer JSON for the admin UI.
-func respondDBErr(c *fiber.Ctx, err error) error {
+func respondDBErr(c fiber.Ctx, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
 		return c.Status(503).JSON(fiber.Map{

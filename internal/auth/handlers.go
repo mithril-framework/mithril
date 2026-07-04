@@ -11,7 +11,7 @@ import (
 	"github.com/mithril-framework/mithril/database/models"
 	"github.com/mithril-framework/mithril/database/repositories"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -40,7 +40,7 @@ func isRegisterEnabled() bool {
 }
 
 // Register handles POST /auth/register.
-func (h *Handlers) Register(c *fiber.Ctx) error {
+func (h *Handlers) Register(c fiber.Ctx) error {
 	if !isRegisterEnabled() {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error":   "registration_disabled",
@@ -58,7 +58,7 @@ func (h *Handlers) Register(c *fiber.Ctx) error {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
 	}
-	if err := c.BodyParser(&body); err != nil {
+	if err := c.Bind().Body(&body); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
 	}
 	if body.Email == "" || body.Password == "" {
@@ -75,7 +75,7 @@ func (h *Handlers) Register(c *fiber.Ctx) error {
 		LastName:     body.LastName,
 		IsActive:     true,
 	}
-	if err := h.UserRepo.Create(c.Context(), u); err != nil {
+	if err := h.UserRepo.Create(c, u); err != nil {
 		var pgErr *pgconn.PgError
 		if ok := errors.As(err, &pgErr); ok && pgErr.Code == "23505" {
 			return c.Status(409).JSON(fiber.Map{"error": "conflict", "message": "email already exists"})
@@ -91,7 +91,7 @@ func (h *Handlers) Register(c *fiber.Ctx) error {
 }
 
 // Login handles POST /auth/login.
-func (h *Handlers) Login(c *fiber.Ctx) error {
+func (h *Handlers) Login(c fiber.Ctx) error {
 	if h.UserRepo == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"error": "service_unavailable", "message": "database not configured",
@@ -102,10 +102,10 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 		Password string `json:"password"`
 		Remember bool   `json:"remember"`
 	}
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
 	}
-	user, err := h.UserRepo.GetByEmail(c.Context(), req.Email)
+	user, err := h.UserRepo.GetByEmail(c, req.Email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return c.Status(401).JSON(fiber.Map{"error": "authentication_failed", "message": "invalid credentials"})
@@ -121,7 +121,7 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 	userID := user.ID.String()
 	roles := []string{"user"}
 	if h.ACLRepo != nil {
-		if names, err := h.ACLRepo.UserRoleNames(c.Context(), user.ID); err == nil && len(names) > 0 {
+		if names, err := h.ACLRepo.UserRoleNames(c, user.ID); err == nil && len(names) > 0 {
 			roles = names
 		}
 	}
@@ -156,7 +156,7 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 }
 
 // notImplemented responds with 501 for unimplemented auth endpoints.
-func notImplemented(c *fiber.Ctx, feature string) error {
+func notImplemented(c fiber.Ctx, feature string) error {
 	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
 		"error":   "not_implemented",
 		"message": feature + " is not implemented yet; see ROADMAP.md",
@@ -164,38 +164,38 @@ func notImplemented(c *fiber.Ctx, feature string) error {
 }
 
 // ForgotPassword handles POST /auth/forgot-password.
-func (h *Handlers) ForgotPassword(c *fiber.Ctx) error {
+func (h *Handlers) ForgotPassword(c fiber.Ctx) error {
 	return notImplemented(c, "password reset")
 }
 
 // ResetPassword handles POST /auth/reset-password.
-func (h *Handlers) ResetPassword(c *fiber.Ctx) error {
+func (h *Handlers) ResetPassword(c fiber.Ctx) error {
 	return notImplemented(c, "password reset")
 }
 
 // SendOTP handles POST /auth/send-otp.
-func (h *Handlers) SendOTP(c *fiber.Ctx) error {
+func (h *Handlers) SendOTP(c fiber.Ctx) error {
 	return notImplemented(c, "OTP")
 }
 
 // VerifyOTP handles POST /auth/verify-otp.
-func (h *Handlers) VerifyOTP(c *fiber.Ctx) error {
+func (h *Handlers) VerifyOTP(c fiber.Ctx) error {
 	return notImplemented(c, "OTP verification")
 }
 
 // Logout handles POST /auth/logout.
-func (h *Handlers) Logout(c *fiber.Ctx) error {
+func (h *Handlers) Logout(c fiber.Ctx) error {
 	c.ClearCookie("access_token")
 	c.ClearCookie("refresh_token")
 	return c.JSON(fiber.Map{"success": true, "message": "Logout successful"})
 }
 
 // Refresh handles POST /auth/refresh.
-func (h *Handlers) Refresh(c *fiber.Ctx) error {
+func (h *Handlers) Refresh(c fiber.Ctx) error {
 	var body struct {
 		RefreshToken string `json:"refresh_token"`
 	}
-	_ = c.BodyParser(&body)
+	_ = c.Bind().Body(&body)
 	if body.RefreshToken == "" {
 		body.RefreshToken = c.Cookies("refresh_token")
 	}
@@ -229,13 +229,13 @@ func (h *Handlers) Refresh(c *fiber.Ctx) error {
 	}
 	isSuper := jwtClaimBool(claims, "is_superuser")
 	if h.UserRepo != nil {
-		u, err := h.UserRepo.GetByID(c.Context(), userUUID)
+		u, err := h.UserRepo.GetByID(c, userUUID)
 		if err != nil {
 			return c.Status(401).JSON(fiber.Map{"error": "token_refresh_failed", "message": "user not found"})
 		}
 		isSuper = u.IsSuperuser
 		if h.ACLRepo != nil {
-			if names, err := h.ACLRepo.UserRoleNames(c.Context(), userUUID); err == nil && len(names) > 0 {
+			if names, err := h.ACLRepo.UserRoleNames(c, userUUID); err == nil && len(names) > 0 {
 				roles = names
 			}
 		}
@@ -259,7 +259,7 @@ func (h *Handlers) Refresh(c *fiber.Ctx) error {
 }
 
 // Me handles GET /auth/me.
-func (h *Handlers) Me(c *fiber.Ctx) error {
+func (h *Handlers) Me(c fiber.Ctx) error {
 	token := c.Locals("user").(*jwt.Token)
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
@@ -300,12 +300,12 @@ func jwtClaimBool(claims jwt.MapClaims, key string) bool {
 }
 
 // Enable2FA handles POST /auth/enable-2fa.
-func (h *Handlers) Enable2FA(c *fiber.Ctx) error {
+func (h *Handlers) Enable2FA(c fiber.Ctx) error {
 	return notImplemented(c, "2FA")
 }
 
 // Verify2FA handles POST /auth/verify-2fa.
-func (h *Handlers) Verify2FA(c *fiber.Ctx) error {
+func (h *Handlers) Verify2FA(c fiber.Ctx) error {
 	return notImplemented(c, "2FA verification")
 }
 
@@ -337,3 +337,5 @@ func (h *Handlers) issueTokenPair(userID, email string, roles []string, sessionI
 	}
 	return accessToken, refreshToken, accessExp, nil
 }
+
+// fiber:context-methods migrated

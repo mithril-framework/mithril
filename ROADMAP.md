@@ -56,7 +56,7 @@ This document tracks planned features and milestones. Items marked **Done** ship
 
 ## Already Available
 
-- Fiber v2 HTTP server with middleware stack
+- Fiber v3 HTTP server with middleware stack
 - PostgreSQL via pgx + goose migrations
 - JWT authentication (access + refresh tokens)
 - Django-style RBAC (roles, permissions, ACL CLI)

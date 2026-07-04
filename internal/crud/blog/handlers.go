@@ -7,7 +7,7 @@ import (
 	"github.com/mithril-framework/mithril/database/repositories"
 	"github.com/mithril-framework/mithril/internal/acl"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -23,9 +23,9 @@ func NewHandlers(repo *repositories.BlogRepository, aclSvc *acl.Service) *Handle
 }
 
 // List returns paginated blogs. Users with blogs.view see all; others see only their posts.
-func (h *Handlers) List(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+func (h *Handlers) List(c fiber.Ctx) error {
+	limit := fiber.Query[int](c, "limit", 20)
+	offset := fiber.Query[int](c, "offset", 0)
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -33,7 +33,7 @@ func (h *Handlers) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	ctx := c.Context()
+	ctx := c
 	var list []*models.Blog
 	if h.acl != nil {
 		viewAll, err := h.acl.HasPermission(ctx, c, uid, "blogs.view", acl.IsSuperuserLocal(c))
@@ -55,12 +55,12 @@ func (h *Handlers) List(c *fiber.Ctx) error {
 }
 
 // Get returns one blog by id if the caller may read it.
-func (h *Handlers) Get(c *fiber.Ctx) error {
+func (h *Handlers) Get(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	m, err := h.repo.GetByID(c.Context(), id)
+	m, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -69,7 +69,7 @@ func (h *Handlers) Get(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	if h.acl != nil {
-		ok, err := h.acl.CanAccessOwnedResource(c.Context(), c, uid, m.AuthorID, "blogs.view", acl.IsSuperuserLocal(c))
+		ok, err := h.acl.CanAccessOwnedResource(c, c, uid, m.AuthorID, "blogs.view", acl.IsSuperuserLocal(c))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -81,13 +81,13 @@ func (h *Handlers) Get(c *fiber.Ctx) error {
 }
 
 // Create creates a blog. Requires blogs.add; author_id is set to the current user.
-func (h *Handlers) Create(c *fiber.Ctx) error {
+func (h *Handlers) Create(c fiber.Ctx) error {
 	uid, err := acl.CurrentUserID(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	if h.acl != nil {
-		ok, err := h.acl.HasPermission(c.Context(), c, uid, "blogs.add", acl.IsSuperuserLocal(c))
+		ok, err := h.acl.HasPermission(c, c, uid, "blogs.add", acl.IsSuperuserLocal(c))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -96,23 +96,23 @@ func (h *Handlers) Create(c *fiber.Ctx) error {
 		}
 	}
 	var m models.Blog
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	m.AuthorID = uid
-	if err := h.repo.Create(c.Context(), &m); err != nil {
+	if err := h.repo.Create(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(http.StatusCreated).JSON(m)
 }
 
 // Update updates a blog by id.
-func (h *Handlers) Update(c *fiber.Ctx) error {
+func (h *Handlers) Update(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	existing, err := h.repo.GetByID(c.Context(), id)
+	existing, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -120,7 +120,7 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	ctx := c.Context()
+	ctx := c
 	if h.acl != nil {
 		jwtSu := acl.IsSuperuserLocal(c)
 		sup, err := h.acl.Repo().UserIsSuperuser(ctx, uid)
@@ -146,7 +146,7 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 		}
 	}
 	var m models.Blog
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	m.ID = id
@@ -157,19 +157,19 @@ func (h *Handlers) Update(c *fiber.Ctx) error {
 			m.AuthorID = existing.AuthorID
 		}
 	}
-	if err := h.repo.Update(c.Context(), &m); err != nil {
+	if err := h.repo.Update(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(m)
 }
 
 // Delete deletes a blog by id.
-func (h *Handlers) Delete(c *fiber.Ctx) error {
+func (h *Handlers) Delete(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	existing, err := h.repo.GetByID(c.Context(), id)
+	existing, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -177,7 +177,7 @@ func (h *Handlers) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	ctx := c.Context()
+	ctx := c
 	if h.acl != nil {
 		jwtSu := acl.IsSuperuserLocal(c)
 		sup, err := h.acl.Repo().UserIsSuperuser(ctx, uid)
@@ -202,8 +202,10 @@ func (h *Handlers) Delete(c *fiber.Ctx) error {
 			}
 		}
 	}
-	if err := h.repo.Delete(c.Context(), id); err != nil {
+	if err := h.repo.Delete(c, id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// fiber:context-methods migrated
