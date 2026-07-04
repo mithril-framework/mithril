@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/mithril-framework/mithril/main/inst
 Or from source:
 
 ```bash
-go install github.com/mithril-framework/mithril/cmd/mithril@main
+go install github.com/mithril-framework/mithril/cmd/mithril@latest
 ```
 
 ### Create a project
@@ -107,7 +107,7 @@ If `mithril --version` prints `dev` or a scaffold message instead of `mithril 1.
 
 ```bash
 which -a mithril
-go install github.com/mithril-framework/mithril/cmd/mithril@main
+go install github.com/mithril-framework/mithril/cmd/mithril@latest
 export PATH="$(go env GOPATH)/bin:$PATH"
 # or symlink to /usr/local/bin:
 sudo "$(go env GOPATH)/bin/mithril" init

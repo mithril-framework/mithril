@@ -91,9 +91,35 @@ func parseNewArgs(args []string) (name, modulePath string, err error) {
 		return "", "", fmt.Errorf("usage: mithril new [-module path] <project-name>")
 	}
 	if modulePath == "" {
-		modulePath = name
+		modulePath = defaultModulePath(name)
 	}
 	return name, modulePath, nil
+}
+
+// defaultModulePath picks a Go module path. Uses github.com/<user>/<name> when
+// GitHub CLI or git config provides a username; otherwise the project name.
+func defaultModulePath(projectName string) string {
+	if login := githubLogin(); login != "" {
+		return "github.com/" + login + "/" + projectName
+	}
+	return projectName
+}
+
+func githubLogin() string {
+	if v := strings.TrimSpace(os.Getenv("GITHUB_USER")); v != "" {
+		return v
+	}
+	if out, err := exec.Command("gh", "api", "user", "-q", ".login").Output(); err == nil {
+		if login := strings.TrimSpace(string(out)); login != "" {
+			return login
+		}
+	}
+	if out, err := exec.Command("git", "config", "--get", "github.user").Output(); err == nil {
+		if login := strings.TrimSpace(string(out)); login != "" {
+			return login
+		}
+	}
+	return ""
 }
 
 func isProjectRoot() bool {
@@ -176,6 +202,7 @@ func cmdInit() error {
 		return fmt.Errorf("could not symlink %s -> %s: %w\nTry: sudo mithril init", exe, target, err)
 	}
 	fmt.Printf("Linked %s -> %s\n", target, exe)
+	fmt.Println("Replaced any previous mithril on /usr/local/bin (including old scaffold CLIs).")
 	return nil
 }
 
@@ -227,18 +254,17 @@ func cmdNew(name, modulePath string) error {
 	_ = tidy.Run()
 
 	fmt.Printf(`
-Project created: %s
+Project created: %s (module %s)
 
 Next steps:
   cd %s
   make dc-up-postgres
   mithril migrate-up
   mithril seed              # demo user: user@example.com / password
-  mithril createsuperuser   # or: --email you@example.com --password 'secret'
   mithril run
 
 Docs: https://mithril-docs-nine.vercel.app/docs/getting-started/quick-start
-`, name, name)
+`, name, modulePath, name)
 	return nil
 }
 
