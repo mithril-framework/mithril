@@ -40,7 +40,7 @@ func main() {
 	repo := repositories.NewUserRepository(pool)
 	_, err = repo.GetByEmail(ctx, "user@example.com")
 	if err == nil {
-		log.Println("Demo user user@example.com already exists, skip seed")
+		log.Println("Demo user user@example.com already exists — seed skipped (database already initialized). Login with user@example.com / password")
 		return
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {

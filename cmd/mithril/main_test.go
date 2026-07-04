@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/mithril-framework/mithril/pkg/version"
@@ -43,7 +42,7 @@ func TestDefaultModulePathGitHubUser(t *testing.T) {
 }
 
 func TestVersionConstant(t *testing.T) {
-	if !strings.HasPrefix(version.Version, "1.") {
-		t.Fatalf("expected 1.x version, got %q", version.Version)
+	if version.Version != "1.0.2" {
+		t.Fatalf("expected 1.0.2, got %q", version.Version)
 	}
 }

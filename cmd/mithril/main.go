@@ -275,6 +275,8 @@ Docs: https://mithril-docs-nine.vercel.app/docs/getting-started/quick-start
 func scrubScaffold(root string) error {
 	remove := []string{
 		".git",
+		".env",
+		".env.bak",
 		".admin-panel-enabled",
 		".dbms-enabled",
 		"t.md",

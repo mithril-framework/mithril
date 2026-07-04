@@ -52,8 +52,8 @@ jobs:
 
       - name: Verify version output
         run: |
-          ./bin/mithril --version | grep -q 'mithril 1.0.1 (github.com/mithril-framework/mithril)'
-          ./bin/mithril ping | grep -q 'mithril 1.0.1 ping ok'
+          ./bin/mithril --version | grep -q 'mithril 1.0.2 (github.com/mithril-framework/mithril)'
+          ./bin/mithril ping | grep -q 'mithril 1.0.2 ping ok'
 
       - name: Scaffold new project
         run: |
@@ -61,13 +61,15 @@ jobs:
           test -f smoke-test/main.go
           test -f smoke-test/Makefile
           test -f smoke-test/.env
+          test ! -f smoke-test/.env.bak
+          test "$(git -C smoke-test branch --show-current)" = "main"
           test ! -f smoke-test/mithril-rev
           test ! -f smoke-test/seed
 
       - name: Install via go install (end-user path)
         run: |
-          GOPROXY=direct go install github.com/mithril-framework/mithril/cmd/mithril@v1.0.1
-          "$(go env GOPATH)/bin/mithril" --version | grep -q 'mithril 1.0.1 (github.com/mithril-framework/mithril)'
+          GOPROXY=direct go install github.com/mithril-framework/mithril/cmd/mithril@v1.0.2
+          "$(go env GOPATH)/bin/mithril" --version | grep -q 'mithril 1.0.2 (github.com/mithril-framework/mithril)'
           "$(go env GOPATH)/bin/mithril" new smoke-install
           test -f smoke-install/main.go
 

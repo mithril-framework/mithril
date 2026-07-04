@@ -2,7 +2,7 @@
 # Mithril framework installer — installs the global mithril CLI via go install.
 set -e
 
-REPO="github.com/mithril-framework/mithril/cmd/mithril@v1.0.1"
+REPO="github.com/mithril-framework/mithril/cmd/mithril@v1.0.2"
 EXPECTED_PREFIX="mithril 1."
 
 echo "Installing Mithril CLI..."
@@ -90,23 +90,29 @@ if [ -n "$CURRENT" ] && [ "$CURRENT" != "$INSTALLED" ]; then
   esac
 fi
 
-# Warn when an old scaffold CLI remains on /usr/local/bin (common PATH trap).
-if [ -x /usr/local/bin/mithril ]; then
-  SYS_VER=$(/usr/local/bin/mithril --version 2>/dev/null || echo unknown)
-  case "$SYS_VER" in
-    mithril\ *github.com/mithril-framework/mithril*) ;;
-    dev|*scaffold*)
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo " Old scaffold CLI at /usr/local/bin/mithril"
-      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo ""
-      echo "  Reports: $SYS_VER"
-      echo "  Replace it with the framework CLI:"
-      echo "    sudo $INSTALLED init"
-      echo "  Or always run: export PATH=\"$GOBIN:\$PATH\""
-      echo ""
-      ;;
-  esac
+# Fail when a default macOS PATH would run the wrong binary (unless overridden).
+if [ "${MITHRIL_INSTALL_FORCE:-}" != "1" ]; then
+  DEFAULT_PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$GOBIN"
+  DEFAULT_BIN=$(PATH="$DEFAULT_PATH" command -v mithril 2>/dev/null || true)
+  if [ -n "$DEFAULT_BIN" ] && [ "$DEFAULT_BIN" != "$INSTALLED" ]; then
+    DEFAULT_VER=$(PATH="$DEFAULT_PATH" "$DEFAULT_BIN" --version 2>/dev/null || echo unknown)
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo " Error: wrong mithril would run in a new terminal"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  Default PATH resolves to: $DEFAULT_BIN"
+    echo "  Reports:                  $DEFAULT_VER"
+    echo "  Installed framework CLI:    $INSTALLED ($NEW_VER)"
+    echo ""
+    echo "Fix (recommended — one time):"
+    echo "  sudo $INSTALLED init"
+    echo ""
+    echo "Or add to ~/.zshrc / ~/.bashrc:"
+    echo "  export PATH=\"$GOBIN:\$PATH\""
+    echo ""
+    echo "To skip this check (not recommended): MITHRIL_INSTALL_FORCE=1 sh install.sh"
+    exit 1
+  fi
 fi
 
 echo "Create a project:  mithril new hello-mithril"
