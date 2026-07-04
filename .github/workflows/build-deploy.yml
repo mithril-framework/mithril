@@ -1,14 +1,12 @@
-# Build and Deploy: test, build Docker image, push to GHCR, deploy to Kubernetes, notify Telegram.
-# Required secrets: KUBE_CONFIG (base64 kubeconfig), TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID.
-# Optional: KUBE_CONTEXT (kubectl context name; if unset, uses current/first context in kubeconfig).
-name: Build and Deploy
+# CI: run tests and publish Docker image to GHCR on push to main.
+# No Kubernetes deploy — use infrastructure/k8s/ manually when you have a cluster.
+name: CI
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Required for pushing images to ghcr.io/${{ github.repository }}
 permissions:
   contents: read
   packages: write
@@ -42,8 +40,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
-    outputs:
-      image: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,8 +53,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata and build image
-        id: meta
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -68,77 +63,3 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    if: ${{ secrets.KUBE_CONFIG != '' }}
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      - name: Configure kubectl
-        run: |
-          echo "Available contexts:"
-          kubectl config get-contexts || true
-          if [ -n "${{ secrets.KUBE_CONTEXT }}" ]; then
-            kubectl config use-context "${{ secrets.KUBE_CONTEXT }}"
-          elif kubectl config current-context >/dev/null 2>&1; then
-            echo "Using current context: $(kubectl config current-context)"
-          else
-            CTX=$(kubectl config get-contexts -o name | head -n1)
-            if [ -z "$CTX" ]; then
-              echo "No kubectl contexts found in kubeconfig"
-              exit 1
-            fi
-            echo "Using first context: $CTX"
-            kubectl config use-context "$CTX"
-          fi
-
-      - name: Apply Kubernetes manifests
-        run: |
-          export IMAGE=${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
-          sed -i "s|ghcr.io/REPO_OWNER/mithril:latest|${IMAGE}|g" infrastructure/k8s/deployment.yaml
-          kubectl apply -f infrastructure/k8s/namespace.yaml
-          kubectl apply -f infrastructure/k8s/configmap.yaml
-          kubectl apply -f infrastructure/k8s/secret.yaml
-          kubectl apply -f infrastructure/k8s/deployment.yaml
-          kubectl apply -f infrastructure/k8s/service.yaml
-
-      - name: Rollout status
-        run: |
-          kubectl rollout status deployment/mithril -n mithril --timeout=120s
-
-  notify:
-    runs-on: ubuntu-latest
-    needs: [test, build, deploy]
-    if: always()
-    steps:
-      - name: Notify Telegram
-        run: |
-          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ]; then
-            STATUS="❌ Failed"
-            TEXT="Test or build failed. ${{ github.repository }} @ ${{ github.sha }}"
-          elif [ "${{ needs.deploy.result }}" = "failure" ]; then
-            STATUS="❌ Deploy failed"
-            TEXT="Build succeeded but deploy failed. ${{ github.repository }} @ ${{ github.sha }}"
-          elif [ "${{ needs.deploy.result }}" = "skipped" ]; then
-            STATUS="✅ Build succeeded"
-            TEXT="Image pushed to GHCR. Deploy skipped (KUBE_CONFIG not set). ${{ github.repository }} @ ${{ github.sha }}"
-          else
-            STATUS="✅ Success"
-            TEXT="Build and deploy succeeded. ${{ github.repository }} @ ${{ github.sha }}"
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "text=${STATUS}%0A${TEXT}" \
-            -d "disable_web_page_preview=true" || true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
