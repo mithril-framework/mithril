@@ -45,7 +45,7 @@ func main() {
 		}
 	default:
 		if isProjectRoot() {
-			if err := delegateMake(os.Args[1:]); err != nil {
+			if err := runProjectCommand(os.Args[1], os.Args[2:]); err != nil {
 				os.Exit(1)
 			}
 			return
@@ -104,6 +104,37 @@ func isProjectRoot() bool {
 		return false
 	}
 	return true
+}
+
+// runProjectCommand runs a project command. Go tools with CLI flags bypass make
+// so flags are not swallowed by GNU make (e.g. createsuperuser --email).
+func runProjectCommand(cmd string, args []string) error {
+	switch cmd {
+	case "createsuperuser":
+		return runGoTool("./cmd/createsuperuser", args)
+	default:
+		return delegateMake(append([]string{cmd}, args...))
+	}
+}
+
+func runGoTool(pkg string, args []string) error {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		return fmt.Errorf("go not found in PATH")
+	}
+	cmdArgs := append([]string{"run", pkg}, args...)
+	c := exec.Command(goPath, cmdArgs...)
+	c.Stdin = os.Stdin
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Dir, _ = os.Getwd()
+	if err := c.Run(); err != nil {
+		if exit, ok := err.(*exec.ExitError); ok {
+			os.Exit(exit.ExitCode())
+		}
+		return err
+	}
+	return nil
 }
 
 func delegateMake(args []string) error {
@@ -175,6 +206,12 @@ func cmdNew(name, modulePath string) error {
 	if err := rewriteModule(name, modulePath); err != nil {
 		return fmt.Errorf("rewrite module: %w", err)
 	}
+
+	initGit := exec.Command("git", "init")
+	initGit.Dir = name
+	initGit.Stdout = os.Stdout
+	initGit.Stderr = os.Stderr
+	_ = initGit.Run()
 
 	envExample := filepath.Join(name, "env.example")
 	envFile := filepath.Join(name, ".env")

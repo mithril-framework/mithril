@@ -37,6 +37,33 @@ jobs:
       - name: Run tests
         run: go test -v ./...
 
+  cli-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build CLI
+        run: go build -o bin/mithril ./cmd/mithril
+
+      - name: Verify version output
+        run: |
+          ./bin/mithril --version | grep -q 'mithril 1.0.0 (github.com/mithril-framework/mithril)'
+          ./bin/mithril ping | grep -q 'mithril 1.0.0 ping ok'
+
+      - name: Scaffold new project
+        run: |
+          ./bin/mithril new smoke-test
+          test -f smoke-test/main.go
+          test -f smoke-test/Makefile
+          test -f smoke-test/.env
+          test ! -f smoke-test/mithril-rev
+          test ! -f smoke-test/seed
+
   build:
     runs-on: ubuntu-latest
     needs: test

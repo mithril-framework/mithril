@@ -2,8 +2,7 @@
 # Mithril framework installer — installs the global mithril CLI via go install.
 set -e
 
-REPO="github.com/mithril-framework/mithril/cmd/mithril@latest"
-EXPECTED_PREFIX="mithril 1."
+REPO="github.com/mithril-framework/mithril/cmd/mithril@main"
 
 echo "Installing Mithril CLI..."
 
@@ -30,7 +29,7 @@ fi
 
 # Detect an older scaffold CLI shadowing the real binary on PATH.
 if command -v mithril >/dev/null 2>&1; then
-  VER=$(mithril --version 2>/dev/null || true)
+  VER=$(PATH="$GOBIN:$PATH" mithril --version 2>/dev/null || true)
   case "$VER" in
     mithril\ *github.com/mithril-framework/mithril*)
       ;;

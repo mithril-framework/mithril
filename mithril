@@ -14,8 +14,12 @@ root=$(cd "$(dirname "$script")" && pwd)
 
 if command -v mithril >/dev/null 2>&1; then
   case "$1" in
-    new|init|--version|-v|version|help|--help|-h)
+    new|init|--version|-v|version|ping|help|--help|-h)
       exec mithril "$@"
+      ;;
+    createsuperuser)
+      shift
+      cd "$root" && exec go run ./cmd/createsuperuser "$@"
       ;;
   esac
   if [ -f "$root/go.mod" ] && grep -q 'github.com/mithril-framework/mithril' "$root/go.mod" 2>/dev/null; then
