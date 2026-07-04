@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/mithril-framework/mithril/pkg/version"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +24,7 @@ func SetupCoreRoutes(app *fiber.App, pool *pgxpool.Pool) {
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"message": "Mithril API",
-			"version": "1.0.0",
+			"version": version.Version,
 		})
 	})
 

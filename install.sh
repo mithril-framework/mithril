@@ -90,5 +90,24 @@ if [ -n "$CURRENT" ] && [ "$CURRENT" != "$INSTALLED" ]; then
   esac
 fi
 
+# Warn when an old scaffold CLI remains on /usr/local/bin (common PATH trap).
+if [ -x /usr/local/bin/mithril ]; then
+  SYS_VER=$(/usr/local/bin/mithril --version 2>/dev/null || echo unknown)
+  case "$SYS_VER" in
+    mithril\ *github.com/mithril-framework/mithril*) ;;
+    dev|*scaffold*)
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo " Old scaffold CLI at /usr/local/bin/mithril"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo ""
+      echo "  Reports: $SYS_VER"
+      echo "  Replace it with the framework CLI:"
+      echo "    sudo $INSTALLED init"
+      echo "  Or always run: export PATH=\"$GOBIN:\$PATH\""
+      echo ""
+      ;;
+  esac
+fi
+
 echo "Create a project:  mithril new hello-mithril"
 echo "Docs:              https://mithril-docs-nine.vercel.app/docs/getting-started/installation"

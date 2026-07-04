@@ -95,7 +95,7 @@
             "type": "string"
           },
           "version": {
-            "example": "1.0.0",
+            "example": "1.0.1",
             "type": "string"
           }
         },
@@ -113,7 +113,7 @@
   "info": {
     "description": "Minimal API documentation for the Mithril Rev service.",
     "title": "Mithril Rev API",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "openapi": "3.0.0",
   "paths": {

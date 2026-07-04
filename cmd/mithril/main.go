@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/mithril-framework/mithril/pkg/version"
 )
 
-const version = "1.0.1"
 const sourceModule = "github.com/mithril-framework/mithril"
 const defaultRepoURL = "https://github.com/mithril-framework/mithril.git"
 
@@ -23,9 +24,9 @@ func main() {
 
 	switch os.Args[1] {
 	case "--version", "-v", "version":
-		fmt.Printf("mithril %s (%s)\n", version, sourceModule)
+		fmt.Printf("mithril %s (%s)\n", version.Version, sourceModule)
 	case "ping":
-		fmt.Printf("mithril %s ping ok\n", version)
+		fmt.Printf("mithril %s ping ok\n", version.Version)
 	case "help", "--help", "-h":
 		printUsage()
 	case "init":
@@ -234,7 +235,7 @@ func cmdNew(name, modulePath string) error {
 		return fmt.Errorf("rewrite module: %w", err)
 	}
 
-	initGit := exec.Command("git", "init")
+	initGit := exec.Command("git", "init", "-b", "main")
 	initGit.Dir = name
 	initGit.Stdout = os.Stdout
 	initGit.Stderr = os.Stderr
@@ -265,6 +266,9 @@ Next steps:
 
 Docs: https://mithril-docs-nine.vercel.app/docs/getting-started/quick-start
 `, name, modulePath, name)
+	if !strings.Contains(modulePath, "github.com/") {
+		fmt.Printf("\nTip: for a conventional Go module path, recreate with:\n  mithril new -module github.com/you/%s %s\n", name, name)
+	}
 	return nil
 }
 
