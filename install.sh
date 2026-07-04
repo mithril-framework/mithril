@@ -7,7 +7,7 @@ REPO="github.com/mithril-framework/mithril/cmd/mithril@latest"
 echo "Installing Mithril CLI..."
 
 if ! command -v go >/dev/null 2>&1; then
-  echo "Error: Go is not installed. Install Go 1.24+ from https://go.dev/dl/" >&2
+  echo "Error: Go is not installed. Install Go 1.25+ from https://go.dev/dl/" >&2
   exit 1
 fi
 
