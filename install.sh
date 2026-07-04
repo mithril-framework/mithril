@@ -90,28 +90,33 @@ if [ -n "$CURRENT" ] && [ "$CURRENT" != "$INSTALLED" ]; then
   esac
 fi
 
-# Fail when a default macOS PATH would run the wrong binary (unless overridden).
+# Fail when a default macOS PATH would run a non-framework binary (unless overridden).
 if [ "${MITHRIL_INSTALL_FORCE:-}" != "1" ]; then
   DEFAULT_PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$GOBIN"
   DEFAULT_BIN=$(PATH="$DEFAULT_PATH" command -v mithril 2>/dev/null || true)
-  if [ -n "$DEFAULT_BIN" ] && [ "$DEFAULT_BIN" != "$INSTALLED" ]; then
+  if [ -n "$DEFAULT_BIN" ]; then
     DEFAULT_VER=$(PATH="$DEFAULT_PATH" "$DEFAULT_BIN" --version 2>/dev/null || echo unknown)
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo " Error: wrong mithril would run in a new terminal"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "  Default PATH resolves to: $DEFAULT_BIN"
-    echo "  Reports:                  $DEFAULT_VER"
-    echo "  Installed framework CLI:    $INSTALLED ($NEW_VER)"
-    echo ""
-    echo "Fix (recommended — one time):"
-    echo "  sudo $INSTALLED init"
-    echo ""
-    echo "Or add to ~/.zshrc / ~/.bashrc:"
-    echo "  export PATH=\"$GOBIN:\$PATH\""
-    echo ""
-    echo "To skip this check (not recommended): MITHRIL_INSTALL_FORCE=1 sh install.sh"
-    exit 1
+    case "$DEFAULT_VER" in
+      mithril\ 1.*github.com/mithril-framework/mithril*) ;;
+      *)
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo " Error: wrong mithril would run in a new terminal"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "  Default PATH resolves to: $DEFAULT_BIN"
+        echo "  Reports:                  $DEFAULT_VER"
+        echo "  Installed framework CLI:    $INSTALLED ($NEW_VER)"
+        echo ""
+        echo "Fix (recommended — one time):"
+        echo "  sudo $INSTALLED init"
+        echo ""
+        echo "Or add to ~/.zshrc / ~/.bashrc:"
+        echo "  export PATH=\"$GOBIN:\$PATH\""
+        echo ""
+        echo "To skip this check (not recommended): MITHRIL_INSTALL_FORCE=1 sh install.sh"
+        exit 1
+        ;;
+    esac
   fi
 fi
 
