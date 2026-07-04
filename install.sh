@@ -3,6 +3,7 @@
 set -e
 
 REPO="github.com/mithril-framework/mithril/cmd/mithril@latest"
+EXPECTED_PREFIX="mithril 1."
 
 echo "Installing Mithril CLI..."
 
@@ -25,6 +26,30 @@ if [ -x "$GOBIN/mithril" ]; then
   echo "Installed: $GOBIN/mithril"
 else
   echo "Warning: binary not found at $GOBIN/mithril — ensure $GOBIN is in your PATH" >&2
+fi
+
+# Detect an older scaffold CLI shadowing the real binary on PATH.
+if command -v mithril >/dev/null 2>&1; then
+  VER=$(mithril --version 2>/dev/null || true)
+  case "$VER" in
+    mithril\ *github.com/mithril-framework/mithril*)
+      ;;
+    mithril\ 1.*|mithril\ 0.*)
+      if ! echo "$VER" | grep -q "github.com/mithril-framework/mithril"; then
+        echo ""
+        echo "Warning: 'mithril' on PATH may not be this installer build:"
+        echo "  $VER"
+        echo "Ensure $(go env GOPATH)/bin is before /usr/local/bin in PATH, or run:"
+        echo "  sudo $GOBIN/mithril init"
+      fi
+      ;;
+    dev|*scaffold*)
+      echo ""
+      echo "Warning: another 'mithril' CLI is on PATH ($VER)."
+      echo "Run: sudo $GOBIN/mithril init"
+      echo "Or prepend PATH: export PATH=\"$GOBIN:\$PATH\""
+      ;;
+  esac
 fi
 
 echo ""

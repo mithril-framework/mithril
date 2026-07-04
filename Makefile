@@ -216,13 +216,13 @@ seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrat
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	touch .seed-allowed && ALLOW_SEED=1 go run ./cmd/seed; rm -f .seed-allowed
 
-createsuperuser: ## Interactive Django-style superuser (email, password x2, names; weak-pw confirm)
+createsuperuser: ## Interactive or non-interactive superuser (--email, --password, or CREATESUPERUSER_* env)
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
 	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
 	fi; \
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env (same as migrate-up)"; exit 1); \
-	go run ./cmd/createsuperuser
+	go run ./cmd/createsuperuser $(ARGS)
 
 admin-enable: ## Enable admin panel (creates .admin-panel-enabled; or set ENABLE_ADMIN_PANEL=true)
 	@touch .admin-panel-enabled && echo "Admin panel enabled (sentinel .admin-panel-enabled). Restart the app."

@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -23,6 +24,13 @@ import (
 
 func main() {
 	loadEnvFile(".env")
+
+	emailFlag := flag.String("email", "", "Superuser email (non-interactive)")
+	passwordFlag := flag.String("password", "", "Superuser password (non-interactive; min 8 chars)")
+	firstNameFlag := flag.String("first-name", "", "First name (optional)")
+	lastNameFlag := flag.String("last-name", "", "Last name (optional)")
+	flag.Parse()
+
 	ctx := context.Background()
 	if os.Getenv("DATABASE_URL") == "" && os.Getenv("DB_HOST") == "" {
 		log.Fatal("Set DATABASE_URL or DB_HOST (and DB_USER, DB_PASSWORD, DB_NAME) in the environment or .env")
@@ -39,10 +47,24 @@ func main() {
 	}
 
 	repo := repositories.NewUserRepository(pool)
+
+	email := strings.TrimSpace(strings.ToLower(firstNonEmpty(*emailFlag, os.Getenv("CREATESUPERUSER_EMAIL"))))
+	password := firstNonEmpty(*passwordFlag, os.Getenv("CREATESUPERUSER_PASSWORD"))
+	if email != "" && password != "" {
+		if err := createSuperuser(ctx, repo, email, password, strings.TrimSpace(*firstNameFlag), strings.TrimSpace(*lastNameFlag)); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if email != "" || password != "" {
+		log.Fatal("Non-interactive mode requires both --email and --password (or CREATESUPERUSER_EMAIL and CREATESUPERUSER_PASSWORD)")
+	}
+
 	sc := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("Superuser creation (mithril)")
 	fmt.Println("Leave email empty to exit.")
+	fmt.Println("Non-interactive: mithril createsuperuser --email you@example.com --password 'your-password'")
 
 	for {
 		email := promptLine(sc, "Email address: ")
@@ -74,24 +96,54 @@ func main() {
 		first = strings.TrimSpace(first)
 		last = strings.TrimSpace(last)
 
-		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-		if err != nil {
-			log.Fatalf("bcrypt: %v", err)
+		if err := createSuperuser(ctx, repo, email, password, first, last); err != nil {
+			log.Fatal(err)
 		}
-		u := &models.User{
-			Email:        email,
-			PasswordHash: string(hash),
-			FirstName:    first,
-			LastName:     last,
-			IsActive:     true,
-			IsSuperuser:  true,
-		}
-		if err := repo.Create(ctx, u); err != nil {
-			log.Fatalf("create user: %v", err)
-		}
-		fmt.Printf("\nSuperuser created successfully.\n  id: %s\n  email: %s\n", u.ID, u.Email)
 		return
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func createSuperuser(ctx context.Context, repo *repositories.UserRepository, email, password, first, last string) error {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
+		return fmt.Errorf("invalid email address: %s", email)
+	}
+	if len(password) < csu.MinPasswordLength {
+		return fmt.Errorf("password must be at least %d characters", csu.MinPasswordLength)
+	}
+	_, err := repo.GetByEmail(ctx, email)
+	if err == nil {
+		return fmt.Errorf("a user with email %s already exists", email)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("database: %w", err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("bcrypt: %w", err)
+	}
+	u := &models.User{
+		Email:        email,
+		PasswordHash: string(hash),
+		FirstName:    first,
+		LastName:     last,
+		IsActive:     true,
+		IsSuperuser:  true,
+	}
+	if err := repo.Create(ctx, u); err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	fmt.Printf("\nSuperuser created successfully.\n  id: %s\n  email: %s\n", u.ID, u.Email)
+	return nil
 }
 
 func promptLine(sc *bufio.Scanner, label string) string {

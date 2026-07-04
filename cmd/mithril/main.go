@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const version = "0.1.0"
+const version = "1.0.0"
 const sourceModule = "github.com/mithril-framework/mithril"
 const defaultRepoURL = "https://github.com/mithril-framework/mithril.git"
 
@@ -22,8 +22,10 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "--version", "-v", "version", "ping":
-		fmt.Printf("mithril %s\n", version)
+	case "--version", "-v", "version":
+		fmt.Printf("mithril %s (%s)\n", version, sourceModule)
+	case "ping":
+		fmt.Printf("mithril %s ping ok\n", version)
 	case "help", "--help", "-h":
 		printUsage()
 	case "init":
@@ -194,7 +196,8 @@ Next steps:
   cd %s
   make dc-up-postgres
   mithril migrate-up
-  mithril createsuperuser
+  mithril seed              # demo user: user@example.com / password
+  mithril createsuperuser   # or: --email you@example.com --password 'secret'
   mithril run
 
 Docs: https://mithril-docs-nine.vercel.app/docs/getting-started/quick-start

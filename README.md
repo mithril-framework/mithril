@@ -37,7 +37,8 @@ cd hello-mithril
 cp env.example .env
 make dc-up-postgres
 make migrate-up
-make createsuperuser
+make seed              # demo user: user@example.com / password
+# or: make createsuperuser
 make run
 ```
 
@@ -97,6 +98,34 @@ Registration is disabled by default. Set `ENABLE_REGISTER=true` to allow `POST /
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Troubleshooting
+
+**Wrong `mithril` on PATH**
+
+If `mithril --version` prints `dev` or a scaffold message instead of `mithril 1.x.x (github.com/mithril-framework/mithril)`, another binary is shadowing the framework CLI:
+
+```bash
+which -a mithril
+go install github.com/mithril-framework/mithril/cmd/mithril@latest
+export PATH="$(go env GOPATH)/bin:$PATH"
+# or symlink to /usr/local/bin:
+sudo "$(go env GOPATH)/bin/mithril" init
+mithril --version
+```
+
+**Quick login without interactive `createsuperuser`**
+
+```bash
+mithril seed
+# user@example.com / password
+```
+
+Or non-interactive superuser:
+
+```bash
+mithril createsuperuser --email admin@example.com --password 'your-secure-password'
+```
 
 ## License
 
