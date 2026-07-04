@@ -8,6 +8,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Required for pushing images to ghcr.io/${{ github.repository }}
+permissions:
+  contents: read
+  packages: write
+
 env:
   GO_VERSION: "1.25"
   REGISTRY: ghcr.io
