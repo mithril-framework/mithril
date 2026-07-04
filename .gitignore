@@ -8,10 +8,17 @@ bin/*
 .admin-panel-enabled
 .dbms-enabled
 itis.json
+t.md
+todo.md
+mithril-rev
+seed
+swagger
 *.exe
 coverage.out
 coverage.html
 __pycache__/
+real-test/
+hello-mithril-test/
 
 # Database backup artifacts (directory kept via database/backups/.gitkeep)
 database/backups/*.sql

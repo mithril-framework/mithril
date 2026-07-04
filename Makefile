@@ -118,7 +118,7 @@ clean: ## Clean build artifacts
 	rm -f coverage.out coverage.html
 
 install-tools: ## Install goose CLI for migrations
-	go install github.com/pressly/goose/v3/cmd/goose@latest
+	go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
 
 migrate-up: ## Run database migrations up (set DATABASE_URL or DB_* in .env)
 	@[ -f .env ] && set -a && . ./.env && set +a; \
@@ -126,7 +126,7 @@ migrate-up: ## Run database migrations up (set DATABASE_URL or DB_* in .env)
 	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
 	fi; \
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* (e.g. DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
+	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" up
 
 migrate-down: ## Run database migrations down
 	@[ -f .env ] && set -a && . ./.env && set +a; \
@@ -134,7 +134,7 @@ migrate-down: ## Run database migrations down
 	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
 	fi; \
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" down
+	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" down
 
 migrate-status: ## Show migration status
 	@[ -f .env ] && set -a && . ./.env && set +a; \
@@ -142,7 +142,7 @@ migrate-status: ## Show migration status
 	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
 	fi; \
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" status
+	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" status
 
 # Use after manually dropping tables (e.g. users). Clears Goose version table so migrate-up re-runs all migrations.
 migrate-reset: ## Clear migration history and re-run all migrations (requires psql)
@@ -153,7 +153,7 @@ migrate-reset: ## Clear migration history and re-run all migrations (requires ps
 	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
 	echo "Clearing goose_db_version and re-running migrations..."; \
 	psql "$$DATABASE_URL" -c "DELETE FROM goose_db_version;" && \
-	go run github.com/pressly/goose/v3/cmd/goose@latest -dir database/migrations postgres "$$DATABASE_URL" up
+	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" up
 
 backup: ## Create database backup (compressed SQL in database/backups). Uses pg_dump, Docker, or Go.
 	@[ -f .env ] && set -a && . ./.env && set +a; \

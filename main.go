@@ -49,15 +49,24 @@ func main() {
 		dsn := db.DSNFromEnv()
 		pool, err := db.New(ctx, dsn)
 		if err != nil {
-			log.Fatalf("database: %v", err)
+			if isProductionEnv() {
+				log.Fatalf("database: %v", err)
+			}
+			log.Printf("warning: database connection failed (%v); starting without DB", err)
+		} else {
+			if err := pool.Ping(ctx); err != nil {
+				pool.Close()
+				if isProductionEnv() {
+					log.Fatalf("database ping: %v", err)
+				}
+				log.Printf("warning: database unavailable (%v); starting without DB (unset DB_HOST to hide this)", err)
+			} else {
+				defer pool.Close()
+				dbPool = pool
+				userRepo = repositories.NewUserRepository(pool)
+				log.Println("Database connected")
+			}
 		}
-		defer pool.Close()
-		if err := pool.Ping(ctx); err != nil {
-			log.Fatalf("database ping: %v", err)
-		}
-		dbPool = pool
-		userRepo = repositories.NewUserRepository(pool)
-		log.Println("Database connected")
 	}
 
 	jwtSecret := resolveJWTSecret()
@@ -141,6 +150,10 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func isProductionEnv() bool {
+	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "production"
 }
 
 func resolveJWTSecret() string {
