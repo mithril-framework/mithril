@@ -1,4 +1,4 @@
-package vendor
+package vendordemo
 
 import (
 	"log"

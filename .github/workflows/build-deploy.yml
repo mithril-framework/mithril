@@ -84,7 +84,7 @@ jobs:
       - name: Apply Kubernetes manifests
         run: |
           export IMAGE=${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
-          sed -i "s|ghcr.io/REPO_OWNER/mithril-rev:latest|${IMAGE}|g" infrastructure/k8s/deployment.yaml
+          sed -i "s|ghcr.io/REPO_OWNER/mithril:latest|${IMAGE}|g" infrastructure/k8s/deployment.yaml
           kubectl apply -f infrastructure/k8s/namespace.yaml
           kubectl apply -f infrastructure/k8s/configmap.yaml
           kubectl apply -f infrastructure/k8s/secret.yaml
@@ -93,7 +93,7 @@ jobs:
 
       - name: Rollout status
         run: |
-          kubectl rollout status deployment/mithril-rev -n mithril-rev --timeout=120s
+          kubectl rollout status deployment/mithril -n mithril --timeout=120s
 
   notify:
     runs-on: ubuntu-latest

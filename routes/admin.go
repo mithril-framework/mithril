@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/acl"
-	"mithril-rev/internal/admin"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
+	"github.com/mithril-framework/mithril/internal/admin"
 	"os"
 	"path/filepath"
 	"strings"

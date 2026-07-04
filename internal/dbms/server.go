@@ -96,7 +96,7 @@ func ListenAndServe(addr string) error {
 	if strings.TrimSpace(addr) == "" {
 		addr = env("DBMS_ADDR", env("ADDR", ":5050"))
 	}
-	log.Printf("mithril-rev dbms listening at http://127.0.0.1%s", addr)
+	log.Printf("mithril dbms listening at http://127.0.0.1%s", addr)
 	return http.ListenAndServe(addr, mux)
 }
 

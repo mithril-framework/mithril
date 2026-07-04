@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/db"
-	"mithril-rev/internal/timezone"
-	"mithril-rev/routes"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/db"
+	"github.com/mithril-framework/mithril/internal/timezone"
+	"github.com/mithril-framework/mithril/routes"
 
 	"github.com/bytedance/sonic"
 	"github.com/gofiber/contrib/swagger"
@@ -60,7 +60,7 @@ func main() {
 		log.Println("Database connected")
 	}
 
-	jwtSecret := getEnv("JWT_SECRET", "secret")
+	jwtSecret := resolveJWTSecret()
 	app := setupApp(dbPool, userRepo, jwtSecret)
 	port := getEnv("PORT", "4000")
 	log.Printf("Starting server on port %s", port)
@@ -74,7 +74,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 	engine.Reload(true) // reload templates in development
 
 	app := fiber.New(fiber.Config{
-		AppName:     getEnv("APP_NAME", "mithril-rev"),
+		AppName:     getEnv("APP_NAME", "mithril"),
 		Views:       engine,
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
@@ -93,7 +93,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 
 	app.Use(requestid.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:3000, https://api.kkk.com",
+		AllowOrigins: corsOrigins(),
 	}))
 	if _, err := os.Stat("./public/assets/favicon.ico"); err == nil {
 		app.Use(favicon.New(favicon.Config{
@@ -109,10 +109,6 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		app.Use(helmet.New())
 	}
 	if isCompressionEnabled() {
-		app.Use(func(c *fiber.Ctx) error {
-			c.Request().Header.Set("Accept-Encoding", "gzip")
-			return c.Next()
-		})
 		app.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
 	}
 	app.Use(healthcheck.New())
@@ -121,7 +117,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 			BasePath: "/",
 			FilePath: "./docs/swagger.json",
 			Path:     "docs",
-			Title:    "Mithril Rev API",
+			Title:    "Mithril API",
 			CacheAge: 0,
 		}))
 	}
@@ -145,6 +141,26 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func resolveJWTSecret() string {
+	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if env == "production" && secret == "" {
+		log.Fatal("JWT_SECRET must be set when APP_ENV=production")
+	}
+	if secret == "" {
+		secret = "secret"
+		log.Println("warning: using default JWT_SECRET; set JWT_SECRET in production")
+	}
+	return secret
+}
+
+func corsOrigins() string {
+	if v := strings.TrimSpace(os.Getenv("CORS_ORIGINS")); v != "" {
+		return v
+	}
+	return "http://localhost:3000,http://localhost:4000"
 }
 
 // isCompressionEnabled returns true when ENABLE_COMPRESSION is true, 1, or yes (case-insensitive).

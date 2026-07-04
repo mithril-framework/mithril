@@ -1,4 +1,4 @@
-# mithril-rev Makefile
+# mithril Makefile
 
 .PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable dbms dbms-enable dbms-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
@@ -307,4 +307,4 @@ kill: ## Kill app on port 4000 and Air (parent of that process)
 	[ -n "$$air_pids" ] && kill -9 $$air_pids 2>/dev/null; \
 	true
 # Variables
-APP_NAME ?= mithril-rev
+APP_NAME ?= mithril

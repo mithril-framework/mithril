@@ -22,7 +22,7 @@ func SetupCoreRoutes(app *fiber.App, pool *pgxpool.Pool) {
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
-			"message": "Mithril Rev API",
+			"message": "Mithril API",
 			"version": "1.0.0",
 		})
 	})
@@ -38,7 +38,7 @@ func SetupCoreRoutes(app *fiber.App, pool *pgxpool.Pool) {
 		return c.JSON(status)
 	})
 
-	appName := getEnv("APP_NAME", "mithril-rev")
+	appName := getEnv("APP_NAME", "mithril")
 	app.Get("/monitor", monitor.New(monitor.Config{
 		Title:   appName + " Monitor",
 		Refresh: 3 * time.Second,

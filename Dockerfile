@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for mithril-rev
+# Multi-stage Dockerfile for mithril
 
 # Build stage
 FROM golang:1.24-alpine AS builder

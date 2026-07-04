@@ -6,9 +6,9 @@ import (
 	"log"
 	"os"
 
-	"mithril-rev/database/models"
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/db"
+	"github.com/mithril-framework/mithril/database/models"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/db"
 
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"

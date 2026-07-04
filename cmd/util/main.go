@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"mithril-rev/pkg/utils"
+	"github.com/mithril-framework/mithril/pkg/utils"
 )
 
 func main() {

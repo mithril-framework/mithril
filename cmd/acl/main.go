@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/db"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/db"
 )
 
 func main() {

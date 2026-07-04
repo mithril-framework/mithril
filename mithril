@@ -1,7 +1,6 @@
 #!/usr/bin/env sh
-# mithril: run make from the repo root.
-# Use ./mithril run (from repo root) so this script is used, not another 'mithril' on PATH.
-# From anywhere: symlink this file into PATH, e.g. ln -s /path/to/mithril-rev/mithril /usr/local/bin/mithril-rev
+# mithril: project CLI wrapper. Prefers global Go binary; falls back to make in repo root.
+set -e
 
 script="$0"
 while [ -L "$script" ]; do
@@ -12,4 +11,16 @@ while [ -L "$script" ]; do
   esac
 done
 root=$(cd "$(dirname "$script")" && pwd)
+
+if command -v mithril >/dev/null 2>&1; then
+  case "$1" in
+    new|init|--version|-v|version|help|--help|-h)
+      exec mithril "$@"
+      ;;
+  esac
+  if [ -f "$root/go.mod" ] && grep -q 'github.com/mithril-framework/mithril' "$root/go.mod" 2>/dev/null; then
+    cd "$root" && exec mithril "$@"
+  fi
+fi
+
 cd "$root" && exec make "$@"

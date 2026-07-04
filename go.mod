@@ -1,4 +1,4 @@
-module mithril-rev
+module github.com/mithril-framework/mithril
 
 go 1.25.0
 

@@ -15,7 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"mithril-rev/internal/timezone"
+	"github.com/mithril-framework/mithril/internal/timezone"
 )
 
 const (

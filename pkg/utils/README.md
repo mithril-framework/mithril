@@ -5,7 +5,7 @@ Common utilities for hashing, encryption, encoding, strings, validation, time, p
 **Import:**
 
 ```go
-import "mithril-rev/pkg/utils"
+import "github.com/mithril-framework/mithril/pkg/utils"
 ```
 
 ---

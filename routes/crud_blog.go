@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/acl"
-	crudhandlers "mithril-rev/internal/crud/blog"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
+	crudhandlers "github.com/mithril-framework/mithril/internal/crud/blog"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"

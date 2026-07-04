@@ -22,7 +22,7 @@ Here's a complete honest audit organized by priority.
 
 ### 2. Module Identity Crisis
 
-The Go module is named `mithril-rev` (in [`go.mod`](go.mod)), but the docs and installation page reference `github.com/mithril-framework/mithril`. These two paths disagree everywhere:
+The Go module is named `mithril` (in [`go.mod`](go.mod)), but the docs and installation page reference `github.com/mithril-framework/mithril`. These two paths disagree everywhere:
 
 - The installation page tells users to run `go get github.com/mithril-framework/mithril@latest` and import `github.com/mithril-framework/mithril/pkg/core` — neither of these work with the current module path.
 - The install script URL (`raw.githubusercontent.com/mithril-framework/mithril/main/install.sh`) does not exist yet.
@@ -132,7 +132,7 @@ With only 2 test files and zero HTTP handler tests, the CI badge "passing" only 
 ### Summary Priority Order
 
 1. Add `README.md`, `LICENSE`, `CONTRIBUTING.md` — without these it cannot be called open source
-2. Align module path (`mithril-rev` → consistent name) and create the real `install.sh`
+2. Align module path (`mithril` → consistent name) and create the real `install.sh`
 3. Remove or gitignore `itis.json`, sentinel files, fix `.gitignore`
 4. Fix Go version mismatch in `go.mod`
 5. Mark unimplemented features as "planned" in the docs — stop showing them as ✅

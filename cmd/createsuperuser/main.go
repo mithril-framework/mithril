@@ -10,10 +10,10 @@ import (
 	"os"
 	"strings"
 
-	"mithril-rev/database/models"
-	"mithril-rev/database/repositories"
-	csu "mithril-rev/internal/createsuperuser"
-	"mithril-rev/internal/db"
+	"github.com/mithril-framework/mithril/database/models"
+	"github.com/mithril-framework/mithril/database/repositories"
+	csu "github.com/mithril-framework/mithril/internal/createsuperuser"
+	"github.com/mithril-framework/mithril/internal/db"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -41,7 +41,7 @@ func main() {
 	repo := repositories.NewUserRepository(pool)
 	sc := bufio.NewScanner(os.Stdin)
 
-	fmt.Println("Superuser creation (mithril-rev)")
+	fmt.Println("Superuser creation (mithril)")
 	fmt.Println("Leave email empty to exit.")
 
 	for {
@@ -125,7 +125,7 @@ func promptPasswordWithPolicy(sc *bufio.Scanner) (string, bool) {
 			log.Fatalf("read password: %v", err)
 		}
 		if pw1 != pw2 {
-			fmt.Println("Error: Passwords do not match. Try again.\n")
+			fmt.Println("Error: Passwords do not match. Try again.")
 			continue
 		}
 		if len(pw1) < csu.MinPasswordLength {
@@ -142,7 +142,7 @@ func promptPasswordWithPolicy(sc *bufio.Scanner) (string, bool) {
 				return "", false
 			}
 			if strings.TrimSpace(strings.ToLower(sc.Text())) != "yes" {
-				fmt.Println("Choose a new password.\n")
+				fmt.Println("Choose a new password.")
 				continue
 			}
 		}

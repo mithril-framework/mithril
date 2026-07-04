@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"mithril-rev/database/models"
-	"mithril-rev/database/repositories"
+	"github.com/mithril-framework/mithril/database/models"
+	"github.com/mithril-framework/mithril/database/repositories"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -155,50 +155,32 @@ func (h *Handlers) Login(c *fiber.Ctx) error {
 	})
 }
 
+// notImplemented responds with 501 for unimplemented auth endpoints.
+func notImplemented(c *fiber.Ctx, feature string) error {
+	return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{
+		"error":   "not_implemented",
+		"message": feature + " is not implemented yet; see ROADMAP.md",
+	})
+}
+
 // ForgotPassword handles POST /auth/forgot-password.
 func (h *Handlers) ForgotPassword(c *fiber.Ctx) error {
-	var body struct {
-		Email string `json:"email"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
-	}
-	return c.JSON(fiber.Map{"success": true, "message": "Password reset email sent successfully"})
+	return notImplemented(c, "password reset")
 }
 
 // ResetPassword handles POST /auth/reset-password.
 func (h *Handlers) ResetPassword(c *fiber.Ctx) error {
-	var body struct {
-		Token       string `json:"token"`
-		NewPassword string `json:"new_password"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
-	}
-	return c.JSON(fiber.Map{"success": true, "message": "Password reset successfully"})
+	return notImplemented(c, "password reset")
 }
 
 // SendOTP handles POST /auth/send-otp.
 func (h *Handlers) SendOTP(c *fiber.Ctx) error {
-	var body struct {
-		Phone string `json:"phone"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
-	}
-	return c.JSON(fiber.Map{"success": true, "message": "OTP sent successfully"})
+	return notImplemented(c, "OTP")
 }
 
 // VerifyOTP handles POST /auth/verify-otp.
 func (h *Handlers) VerifyOTP(c *fiber.Ctx) error {
-	var body struct {
-		Phone string `json:"phone"`
-		Code  string `json:"code"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
-	}
-	return c.JSON(fiber.Map{"success": true, "message": "OTP verified successfully"})
+	return notImplemented(c, "OTP verification")
 }
 
 // Logout handles POST /auth/logout.
@@ -319,26 +301,12 @@ func jwtClaimBool(claims jwt.MapClaims, key string) bool {
 
 // Enable2FA handles POST /auth/enable-2fa.
 func (h *Handlers) Enable2FA(c *fiber.Ctx) error {
-	return c.JSON(fiber.Map{
-		"success": true,
-		"message": "2FA setup initiated",
-		"data": fiber.Map{
-			"secret":       "placeholder_secret",
-			"qr_code":      "placeholder_qr_code_url",
-			"backup_codes": []string{"code1", "code2", "code3"},
-		},
-	})
+	return notImplemented(c, "2FA")
 }
 
 // Verify2FA handles POST /auth/verify-2fa.
 func (h *Handlers) Verify2FA(c *fiber.Ctx) error {
-	var body struct {
-		Code string `json:"code"`
-	}
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "validation_error", "message": "Invalid request format"})
-	}
-	return c.JSON(fiber.Map{"success": true, "message": "2FA verified successfully"})
+	return notImplemented(c, "2FA verification")
 }
 
 // issueTokenPair signs access and refresh JWTs. Claims: user_id, email, roles ([]string),

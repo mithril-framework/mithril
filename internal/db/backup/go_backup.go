@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"mithril-rev/internal/db"
+	"github.com/mithril-framework/mithril/internal/db"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

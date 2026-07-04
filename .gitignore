@@ -2,13 +2,16 @@ tmp/
 # Binaries under bin/ (keep empty dir via .gitkeep)
 bin/*
 !bin/.gitkeep
-# .env
+.env
+.env.bak
 .seed-allowed
-# .admin-panel-enabled
-# .dbms-enabled
+.admin-panel-enabled
+.dbms-enabled
+itis.json
 *.exe
 coverage.out
 coverage.html
+__pycache__/
 
 # Database backup artifacts (directory kept via database/backups/.gitkeep)
 database/backups/*.sql

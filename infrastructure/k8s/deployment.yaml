@@ -1,32 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mithril-rev
-  namespace: mithril-rev
+  name: mithril
+  namespace: mithril
   labels:
-    app: mithril-rev
+    app: mithril
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: mithril-rev
+      app: mithril
   template:
     metadata:
       labels:
-        app: mithril-rev
+        app: mithril
     spec:
       containers:
         - name: app
-          image: ghcr.io/REPO_OWNER/mithril-rev:latest
+          image: ghcr.io/REPO_OWNER/mithril:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4000
               name: http
           envFrom:
             - configMapRef:
-                name: mithril-rev-config
+                name: mithril-config
             - secretRef:
-                name: mithril-rev-secret
+                name: mithril-secret
           resources:
             requests:
               memory: "128Mi"

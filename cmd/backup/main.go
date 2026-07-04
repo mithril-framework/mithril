@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"mithril-rev/internal/db"
-	"mithril-rev/internal/db/backup"
-	"mithril-rev/internal/timezone"
+	"github.com/mithril-framework/mithril/internal/db"
+	"github.com/mithril-framework/mithril/internal/db/backup"
+	"github.com/mithril-framework/mithril/internal/timezone"
 )
 
 func main() {

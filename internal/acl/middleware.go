@@ -1,7 +1,7 @@
 package acl
 
 import (
-	"mithril-rev/database/repositories"
+	"github.com/mithril-framework/mithril/database/repositories"
 
 	"github.com/gofiber/fiber/v2"
 )

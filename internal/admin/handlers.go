@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"mithril-rev/database/models"
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/acl"
+	"github.com/mithril-framework/mithril/database/models"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"

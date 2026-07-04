@@ -15,13 +15,19 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: go run ./cmd/crud <ModelName>")
+	dryRun := false
+	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "--dry-run" {
+		dryRun = true
+		args = args[1:]
+	}
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Usage: go run ./cmd/crud [--dry-run] <ModelName>")
 		os.Exit(1)
 	}
-	modelName := strings.TrimSpace(os.Args[1])
+	modelName := strings.TrimSpace(args[0])
 	if modelName == "" {
-		fmt.Fprintln(os.Stderr, "Usage: go run ./cmd/crud <ModelName>")
+		fmt.Fprintln(os.Stderr, "Usage: go run ./cmd/crud [--dry-run] <ModelName>")
 		os.Exit(1)
 	}
 	// PascalCase -> lowercase for file name
@@ -39,6 +45,17 @@ func main() {
 	}
 
 	repoPath := filepath.Join("database", "repositories", info.SnakeName+"_repository.go")
+	handlersPath := filepath.Join("internal", "crud", lower, "handlers.go")
+	routesPath := filepath.Join("routes", "crud_"+lower+".go")
+	if dryRun {
+		fmt.Println("[dry-run] Would generate CRUD for", modelName)
+		fmt.Println("  ", repoPath)
+		fmt.Println("  ", handlersPath)
+		fmt.Println("  ", routesPath)
+		fmt.Println("[dry-run] Would update routes/register.go with MountCrud" + info.Name + "Routes")
+		return
+	}
+
 	if _, err := os.Stat(repoPath); err == nil {
 		fmt.Fprintf(os.Stderr, "Repository already exists: %s (skip)\n", repoPath)
 	} else {
@@ -50,7 +67,7 @@ func main() {
 	}
 
 	handlersDir := filepath.Join("internal", "crud", lower)
-	handlersPath := filepath.Join(handlersDir, "handlers.go")
+	handlersPath = filepath.Join(handlersDir, "handlers.go")
 	if err := os.MkdirAll(handlersDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Mkdir handlers: %v\n", err)
 		os.Exit(1)
@@ -61,7 +78,7 @@ func main() {
 	}
 	fmt.Println("Generated", handlersPath)
 
-	routesPath := filepath.Join("routes", "crud_"+lower+".go")
+	routesPath = filepath.Join("routes", "crud_"+lower+".go")
 	if err := generateRoutes(routesPath, info); err != nil {
 		fmt.Fprintf(os.Stderr, "Generate routes: %v\n", err)
 		os.Exit(1)
@@ -232,7 +249,7 @@ func generateRepository(path string, info *modelInfo) error {
 import (
 	"context"
 
-	"mithril-rev/database/models"
+	"github.com/mithril-framework/mithril/database/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -373,8 +390,9 @@ func generateHandlers(path string, info *modelInfo) error {
 import (
 	"net/http"
 
-	"mithril-rev/database/models"
-	"mithril-rev/database/repositories"
+	"github.com/mithril-framework/mithril/database/models"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -383,11 +401,12 @@ import (
 // Handlers holds {{.Lower}} CRUD handlers.
 type Handlers struct {
 	repo *repositories.{{.Name}}Repository
+	acl  *acl.Service
 }
 
-// NewHandlers returns {{.Name}} CRUD handlers.
-func NewHandlers(repo *repositories.{{.Name}}Repository) *Handlers {
-	return &Handlers{repo: repo}
+// NewHandlers returns {{.Name}} CRUD handlers. acl may be nil.
+func NewHandlers(repo *repositories.{{.Name}}Repository, aclSvc *acl.Service) *Handlers {
+	return &Handlers{repo: repo, acl: aclSvc}
 }
 
 // List returns paginated {{.Plural}}. Query: limit (default 20), offset (default 0).
@@ -470,26 +489,26 @@ func generateRoutes(path string, info *modelInfo) error {
 	tpl := `package routes
 
 import (
-	"mithril-rev/database/repositories"
-	crudhandlers "mithril-rev/internal/crud/{{.Lower}}"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
+	crudhandlers "github.com/mithril-framework/mithril/internal/crud/{{.Lower}}"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// SetupCrud{{.Name}}Routes registers REST CRUD for {{.Plural}} at /api/{{.Plural}}.
-func SetupCrud{{.Name}}Routes(app *fiber.App, pool *pgxpool.Pool) {
+// MountCrud{{.Name}}Routes registers {{.Plural}} CRUD on an existing /api group (middleware already applied).
+func MountCrud{{.Name}}Routes(api fiber.Router, pool *pgxpool.Pool, aclSvc *acl.Service) {
 	if pool == nil {
 		return
 	}
 	repo := repositories.New{{.Name}}Repository(pool)
-	h := crudhandlers.NewHandlers(repo)
-	api := app.Group("/api")
-	api.Get("/{{.Plural}}", h.List)
+	h := crudhandlers.NewHandlers(repo, aclSvc)
+	api.Get("/{{.Plural}}", acl.RequirePermission(aclSvc, "{{.Plural}}.view"), h.List)
 	api.Get("/{{.Plural}}/:id", h.Get)
-	api.Post("/{{.Plural}}", h.Create)
+	api.Post("/{{.Plural}}", acl.RequirePermission(aclSvc, "{{.Plural}}.add"), h.Create)
 	api.Put("/{{.Plural}}/:id", h.Update)
-	api.Delete("/{{.Plural}}/:id", h.Delete)
+	api.Delete("/{{.Plural}}/:id", acl.RequirePermission(aclSvc, "{{.Plural}}.delete"), h.Delete)
 }
 `
 	t, _ := template.New("").Parse(tpl)
@@ -506,11 +525,11 @@ func appendRegister(info *modelInfo) error {
 	if err != nil {
 		return err
 	}
-	line := "\tSetupCrud" + info.Name + "Routes(app, pool)\n"
-	if strings.Contains(string(content), "SetupCrud"+info.Name+"Routes") {
+	line := "\t\tMountCrud" + info.Name + "Routes(api, pool, aclSvc)\n"
+	if strings.Contains(string(content), "MountCrud"+info.Name+"Routes") {
 		return nil
 	}
-	anchor := "\tSetupVendorRoutes(app, pool)\n"
+	anchor := "\t\tMountCrudUserRoutes(api, pool, aclSvc)\n"
 	newContent := bytes.Replace(content, []byte(anchor), []byte(anchor+line), 1)
 	if bytes.Equal(content, newContent) {
 		return fmt.Errorf("could not find %q in register.go", strings.TrimSpace(anchor))

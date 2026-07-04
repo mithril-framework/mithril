@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"mithril-rev/database/models"
+	"github.com/mithril-framework/mithril/database/models"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

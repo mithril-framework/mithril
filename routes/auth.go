@@ -3,7 +3,7 @@ package routes
 import (
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
-	"mithril-rev/internal/auth"
+	"github.com/mithril-framework/mithril/internal/auth"
 )
 
 // SetupAuthRoutes registers the /auth group: public routes, then JWT middleware, then protected routes.

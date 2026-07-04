@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"mithril-rev/database/repositories"
-	"mithril-rev/internal/acl"
-	"mithril-rev/internal/auth"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
+	"github.com/mithril-framework/mithril/internal/auth"
 
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
@@ -31,7 +31,6 @@ func RegisterAll(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories.User
 	SetupCoreRoutes(app, pool)
 	SetupWebRoutes(app, pool)
 	SetupAuthRoutes(app, authHandlers, jwtConfig)
-	SetupVendorRoutes(app, pool)
 	if pool != nil {
 		api := app.Group("/api")
 		api.Use(jwtware.New(jwtConfig))
