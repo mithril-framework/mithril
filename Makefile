@@ -295,13 +295,20 @@ acl-revoke-permission-user: ## make acl-revoke-permission-user USER_EMAIL=... CO
 	$(MAKE) acl ARGS='revoke permission user $(USER_EMAIL) $(CODENAME)'
 
 kill: ## Kill app on port 4000 and Air (parent of that process)
-	@pids=$$(lsof -t -i:4000); \
-	if [ -n "$$pids" ]; then \
-		for pid in $$pids; do \
-			ppid=$$(ps -o ppid= -p $$pid 2>/dev/null | tr -d ' '); \
-			[ -n "$$ppid" ] && [ "$$ppid" -gt 1 ] && kill -9 $$ppid 2>/dev/null; \
-		done; \
-		kill -9 $$pids 2>/dev/null; \
+	@lsof_bin=$$(command -v lsof 2>/dev/null || true); \
+	if [ -z "$$lsof_bin" ] && [ -x /usr/sbin/lsof ]; then lsof_bin=/usr/sbin/lsof; fi; \
+	if [ -z "$$lsof_bin" ] && [ -x /sbin/lsof ]; then lsof_bin=/sbin/lsof; fi; \
+	if [ -n "$$lsof_bin" ]; then \
+	  pids=$$("$$lsof_bin" -t -i:4000 2>/dev/null); \
+	  if [ -n "$$pids" ]; then \
+	    for pid in $$pids; do \
+	      ppid=$$(ps -o ppid= -p $$pid 2>/dev/null | tr -d ' '); \
+	      [ -n "$$ppid" ] && [ "$$ppid" -gt 1 ] && kill -9 $$ppid 2>/dev/null; \
+	    done; \
+	    kill -9 $$pids 2>/dev/null; \
+	  fi; \
+	else \
+	  echo "lsof not found — cannot free port 4000. Install lsof or run: kill \$$(pgrep -f 'go run \\.')"; \
 	fi; \
 	air_pids=$$(pgrep -f '\\.air\\.toml' 2>/dev/null); \
 	[ -n "$$air_pids" ] && kill -9 $$air_pids 2>/dev/null; \

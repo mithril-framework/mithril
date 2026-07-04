@@ -52,8 +52,8 @@ jobs:
 
       - name: Verify version output
         run: |
-          ./bin/mithril --version | grep -q 'mithril 1.0.0 (github.com/mithril-framework/mithril)'
-          ./bin/mithril ping | grep -q 'mithril 1.0.0 ping ok'
+          ./bin/mithril --version | grep -q 'mithril 1.0.1 (github.com/mithril-framework/mithril)'
+          ./bin/mithril ping | grep -q 'mithril 1.0.1 ping ok'
 
       - name: Scaffold new project
         run: |
@@ -63,6 +63,23 @@ jobs:
           test -f smoke-test/.env
           test ! -f smoke-test/mithril-rev
           test ! -f smoke-test/seed
+
+      - name: Install via go install (end-user path)
+        run: |
+          GOPROXY=direct go install github.com/mithril-framework/mithril/cmd/mithril@v1.0.1
+          "$(go env GOPATH)/bin/mithril" --version | grep -q 'mithril 1.0.1 (github.com/mithril-framework/mithril)'
+          "$(go env GOPATH)/bin/mithril" new smoke-install
+          test -f smoke-install/main.go
+
+      - name: Note proxy.golang.org @latest (informational)
+        run: |
+          ver=$(GOPROXY=https://proxy.golang.org go list -m -versions github.com/mithril-framework/mithril 2>/dev/null | awk '{print $NF}')
+          echo "proxy.golang.org versions tail: $ver"
+          if echo "$ver" | grep -q 'v1.0'; then
+            echo "proxy has v1.0.x — @latest should work for users without GOPROXY=direct"
+          else
+            echo "proxy may still serve v0.1.0 as @latest; install.sh uses GOPROXY=direct"
+          fi
 
   build:
     runs-on: ubuntu-latest
