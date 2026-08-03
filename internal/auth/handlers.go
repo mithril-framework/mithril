@@ -11,6 +11,7 @@ import (
 	"github.com/mithril-framework/mithril/database/models"
 	"github.com/mithril-framework/mithril/database/repositories"
 
+	jwtware "github.com/gofiber/contrib/v3/jwt"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -260,7 +261,10 @@ func (h *Handlers) Refresh(c fiber.Ctx) error {
 
 // Me handles GET /auth/me.
 func (h *Handlers) Me(c fiber.Ctx) error {
-	token := c.Locals("user").(*jwt.Token)
+	token := jwtware.FromContext(c)
+	if token == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "unauthorized", "message": "missing token"})
+	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return c.Status(401).JSON(fiber.Map{"error": "unauthorized", "message": "invalid claims"})

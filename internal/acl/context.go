@@ -3,6 +3,7 @@ package acl
 import (
 	"errors"
 
+	jwtware "github.com/gofiber/contrib/v3/jwt"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -17,11 +18,12 @@ const (
 	LocalSessionID   = "acl_session_id"
 )
 
-// JWTClaimsMiddleware copies MapClaims into Locals for ACL and handlers. Requires c.Locals("user") *jwt.Token.
+// JWTClaimsMiddleware copies MapClaims into Locals for ACL and handlers.
+// Requires a token from jwtware.FromContext (Fiber v3 JWT middleware).
 func JWTClaimsMiddleware() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		tok, ok := c.Locals("user").(*jwt.Token)
-		if !ok || tok == nil {
+		tok := jwtware.FromContext(c)
+		if tok == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized", "message": "missing token"})
 		}
 		claims, ok := tok.Claims.(jwt.MapClaims)
