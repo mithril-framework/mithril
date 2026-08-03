@@ -1,15 +1,16 @@
 package routes
 
 import (
-	"github.com/mithril-framework/mithril/database/repositories"
-	"github.com/mithril-framework/mithril/internal/acl"
-	"github.com/mithril-framework/mithril/internal/admin"
 	"os"
 	"path/filepath"
 	"strings"
 
-	jwtware "github.com/gofiber/contrib/jwt"
-	"github.com/gofiber/fiber/v2"
+	"github.com/mithril-framework/mithril/database/repositories"
+	"github.com/mithril-framework/mithril/internal/acl"
+	"github.com/mithril-framework/mithril/internal/admin"
+
+	jwtware "github.com/gofiber/contrib/v3/jwt"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,15 +26,15 @@ func SetupAdminRoutes(app *fiber.App, pool *pgxpool.Pool, userRepo *repositories
 
 	// Only redirect exact /admin → /admin/. Do not use Get("/admin") alone: with default routing
 	// it can also match /admin/, causing an infinite redirect loop (ERR_TOO_MANY_REDIRECTS).
-	app.Use("/admin", func(c *fiber.Ctx) error {
+	app.Use("/admin", func(c fiber.Ctx) error {
 		if c.Method() == fiber.MethodGet && c.Path() == "/admin" {
-			return c.Redirect("/admin/", fiber.StatusFound)
+			return c.Redirect().Status(fiber.StatusFound).To("/admin/")
 		}
 		return c.Next()
 	})
 
 	// Serve real files (admin.js, admin.css, …); any other GET /admin/... → SPA index.html
-	app.Use("/admin", func(c *fiber.Ctx) error {
+	app.Use("/admin", func(c fiber.Ctx) error {
 		if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {
 			return c.Next()
 		}

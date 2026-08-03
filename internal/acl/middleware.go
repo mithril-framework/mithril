@@ -3,12 +3,12 @@ package acl
 import (
 	"github.com/mithril-framework/mithril/database/repositories"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // RequirePermission denies with 403 when the user lacks the codename.
 func RequirePermission(svc *Service, codename string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if svc == nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden", "message": "acl not configured"})
 		}
@@ -16,7 +16,7 @@ func RequirePermission(svc *Service, codename string) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
-		ok, err := svc.HasPermission(c.Context(), c, uid, codename, IsSuperuserLocal(c))
+		ok, err := svc.HasPermission(c, c, uid, codename, IsSuperuserLocal(c))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -29,7 +29,7 @@ func RequirePermission(svc *Service, codename string) fiber.Handler {
 
 // RequireAnyPermission allows if any codename matches.
 func RequireAnyPermission(svc *Service, codenames ...string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if svc == nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden", "message": "acl not configured"})
 		}
@@ -39,7 +39,7 @@ func RequireAnyPermission(svc *Service, codenames ...string) fiber.Handler {
 		}
 		su := IsSuperuserLocal(c)
 		for _, codename := range codenames {
-			ok, err := svc.HasPermission(c.Context(), c, uid, codename, su)
+			ok, err := svc.HasPermission(c, c, uid, codename, su)
 			if err != nil {
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 			}
@@ -53,7 +53,7 @@ func RequireAnyPermission(svc *Service, codenames ...string) fiber.Handler {
 
 // RequireRole denies with 403 when the user does not have the role name.
 func RequireRole(svc *Service, repo *repositories.ACLRepository, roleName string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if svc == nil || repo == nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden", "message": "acl not configured"})
 		}
@@ -64,14 +64,14 @@ func RequireRole(svc *Service, repo *repositories.ACLRepository, roleName string
 		if IsSuperuserLocal(c) {
 			return c.Next()
 		}
-		ok, err := repo.UserIsSuperuser(c.Context(), uid)
+		ok, err := repo.UserIsSuperuser(c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
 		if ok {
 			return c.Next()
 		}
-		has, err := svc.HasRole(c.Context(), uid, roleName)
+		has, err := svc.HasRole(c, uid, roleName)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -84,7 +84,7 @@ func RequireRole(svc *Service, repo *repositories.ACLRepository, roleName string
 
 // RequireSuperuser allows only JWT is_superuser or DB superuser.
 func RequireSuperuser(svc *Service) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if IsSuperuserLocal(c) {
 			return c.Next()
 		}
@@ -95,7 +95,7 @@ func RequireSuperuser(svc *Service) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
-		ok, err := svc.repo.UserIsSuperuser(c.Context(), uid)
+		ok, err := svc.repo.UserIsSuperuser(c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -108,7 +108,7 @@ func RequireSuperuser(svc *Service) fiber.Handler {
 
 // RequireAdminAccess allows superuser or permission admin.access.
 func RequireAdminAccess(svc *Service) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if svc == nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden", "message": "acl not configured"})
 		}
@@ -120,14 +120,14 @@ func RequireAdminAccess(svc *Service) fiber.Handler {
 		if su {
 			return c.Next()
 		}
-		ok, err := svc.repo.UserIsSuperuser(c.Context(), uid)
+		ok, err := svc.repo.UserIsSuperuser(c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
 		if ok {
 			return c.Next()
 		}
-		has, err := svc.HasPermission(c.Context(), c, uid, "admin.access", false)
+		has, err := svc.HasPermission(c, c, uid, "admin.access", false)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -137,3 +137,5 @@ func RequireAdminAccess(svc *Service) fiber.Handler {
 		return c.Next()
 	}
 }
+
+// fiber:context-methods migrated

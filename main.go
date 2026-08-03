@@ -14,17 +14,17 @@ import (
 	"github.com/mithril-framework/mithril/routes"
 
 	"github.com/bytedance/sonic"
-	"github.com/gofiber/contrib/swagger"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/favicon"
-	"github.com/gofiber/fiber/v2/middleware/healthcheck"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
-	"github.com/gofiber/template/jet/v2"
+	swagger "github.com/gofiber/contrib/v3/swaggerui"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/gofiber/fiber/v3/middleware/favicon"
+	"github.com/gofiber/fiber/v3/middleware/healthcheck"
+	"github.com/gofiber/fiber/v3/middleware/helmet"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
+	"github.com/gofiber/template/jet/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -87,7 +87,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 		Views:       engine,
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
+		ErrorHandler: func(c fiber.Ctx, err error) error {
 			code := fiber.StatusInternalServerError
 			if e, ok := err.(*fiber.Error); ok {
 				code = e.Code
@@ -102,7 +102,7 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 
 	app.Use(requestid.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: corsOrigins(),
+		AllowOrigins: strings.Split(corsOrigins(), ","),
 	}))
 	if _, err := os.Stat("./public/assets/favicon.ico"); err == nil {
 		app.Use(favicon.New(favicon.Config{
@@ -120,7 +120,8 @@ func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecr
 	if isCompressionEnabled() {
 		app.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
 	}
-	app.Use(healthcheck.New())
+	app.Get(healthcheck.LivenessEndpoint, healthcheck.New())
+	app.Get(healthcheck.ReadinessEndpoint, healthcheck.New())
 	if _, err := os.Stat("./docs/swagger.json"); err == nil {
 		app.Use(swagger.New(swagger.Config{
 			BasePath: "/",

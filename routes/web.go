@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -10,7 +10,7 @@ import (
 func SetupWebRoutes(app *fiber.App, pool *pgxpool.Pool) {
 	_ = pool
 
-	app.Get("/html", func(c *fiber.Ctx) error {
+	app.Get("/html", func(c fiber.Ctx) error {
 		return c.Render("demo", fiber.Map{
 			"Title":   "HTML Demo",
 			"Message": "Hello from Jet",

@@ -3,7 +3,7 @@ package acl
 import (
 	"errors"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -19,7 +19,7 @@ const (
 
 // JWTClaimsMiddleware copies MapClaims into Locals for ACL and handlers. Requires c.Locals("user") *jwt.Token.
 func JWTClaimsMiddleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		tok, ok := c.Locals("user").(*jwt.Token)
 		if !ok || tok == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized", "message": "missing token"})
@@ -71,7 +71,7 @@ func jwtStringSlice(v any) []string {
 }
 
 // CurrentUserID parses Locals user id as UUID.
-func CurrentUserID(c *fiber.Ctx) (uuid.UUID, error) {
+func CurrentUserID(c fiber.Ctx) (uuid.UUID, error) {
 	s, ok := c.Locals(LocalUserID).(string)
 	if !ok || s == "" {
 		return uuid.Nil, errors.New("missing user id")
@@ -80,7 +80,7 @@ func CurrentUserID(c *fiber.Ctx) (uuid.UUID, error) {
 }
 
 // IsSuperuserLocal reads JWT-derived superuser flag from Locals.
-func IsSuperuserLocal(c *fiber.Ctx) bool {
+func IsSuperuserLocal(c fiber.Ctx) bool {
 	v := c.Locals(LocalIsSuperuser)
 	if b, ok := v.(bool); ok {
 		return b

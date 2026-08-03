@@ -93,16 +93,16 @@ func main() {
 }
 
 type modelInfo struct {
-	Name       string   // PascalCase, e.g. User
-	Lower      string   // lowercase, e.g. user
-	SnakeName  string   // for repo file, e.g. user
-	TableName  string   // plural lowercase, e.g. users
-	Plural     string   // for URL, e.g. users
-	IDType     string   // uuid.UUID or int64
-	IDPkg      string   // e.g. github.com/google/uuid
-	Fields     []fieldInfo
-	HasUUID    bool
-	HasTime    bool
+	Name      string // PascalCase, e.g. User
+	Lower     string // lowercase, e.g. user
+	SnakeName string // for repo file, e.g. user
+	TableName string // plural lowercase, e.g. users
+	Plural    string // for URL, e.g. users
+	IDType    string // uuid.UUID or int64
+	IDPkg     string // e.g. github.com/google/uuid
+	Fields    []fieldInfo
+	HasUUID   bool
+	HasTime   bool
 }
 
 type fieldInfo struct {
@@ -145,9 +145,9 @@ func parseModelFile(path, structName string) (*modelInfo, error) {
 				snake := toSnake(name.Name)
 				sqlType := goTypeToSQL(typ)
 				fi := fieldInfo{
-					Name:   name.Name,
-					Snake:  snake,
-					GoType: typ,
+					Name:    name.Name,
+					Snake:   snake,
+					GoType:  typ,
 					SQLType: sqlType,
 				}
 				if name.Name == "ID" {
@@ -190,12 +190,12 @@ func parseModelFile(path, structName string) (*modelInfo, error) {
 		Lower:     lower,
 		SnakeName: toSnake(structName),
 		TableName: tableName,
-		Plural:   tableName,
-		IDType:   idType,
-		IDPkg:    idPkg,
-		Fields:   fields,
-		HasUUID:  hasUUID,
-		HasTime:  hasTime,
+		Plural:    tableName,
+		IDType:    idType,
+		IDPkg:     idPkg,
+		Fields:    fields,
+		HasUUID:   hasUUID,
+		HasTime:   hasTime,
 	}, nil
 }
 
@@ -368,7 +368,7 @@ func (r *{{.Name}}Repository) List(ctx context.Context, limit, offset int) ([]*m
 		"InsertPlaceholders": strings.Join(insertPh, ", "),
 		"ReturningColumns":   strings.Join(returningCols, ", "),
 		"InsertArgs":         strings.Join(insertArgs, ", "),
-		"ScanArgs":            strings.Join(scanArgs, ", "),
+		"ScanArgs":           strings.Join(scanArgs, ", "),
 		"SelectColumns":      strings.Join(selectCols, ", "),
 		"ScanRefs":           strings.Join(scanRefs, ", "),
 		"UpdateSet":          strings.Join(updateSet, ", "),
@@ -394,7 +394,7 @@ import (
 	"github.com/mithril-framework/mithril/database/repositories"
 	"github.com/mithril-framework/mithril/internal/acl"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -410,13 +410,13 @@ func NewHandlers(repo *repositories.{{.Name}}Repository, aclSvc *acl.Service) *H
 }
 
 // List returns paginated {{.Plural}}. Query: limit (default 20), offset (default 0).
-func (h *Handlers) List(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+func (h *Handlers) List(c fiber.Ctx) error {
+	limit := fiber.Query[int](c, "limit", 20)
+	offset := fiber.Query[int](c, "offset", 0)
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	list, err := h.repo.List(c.Context(), limit, offset)
+	list, err := h.repo.List(c, limit, offset)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -424,12 +424,12 @@ func (h *Handlers) List(c *fiber.Ctx) error {
 }
 
 // Get returns one {{.Lower}} by id.
-func (h *Handlers) Get(c *fiber.Ctx) error {
+func (h *Handlers) Get(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	m, err := h.repo.GetByID(c.Context(), id)
+	m, err := h.repo.GetByID(c, id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "not found"})
 	}
@@ -437,41 +437,41 @@ func (h *Handlers) Get(c *fiber.Ctx) error {
 }
 
 // Create creates a {{.Lower}}. Request body: JSON matching models.{{.Name}}.
-func (h *Handlers) Create(c *fiber.Ctx) error {
+func (h *Handlers) Create(c fiber.Ctx) error {
 	var m models.{{.Name}}
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	if err := h.repo.Create(c.Context(), &m); err != nil {
+	if err := h.repo.Create(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(http.StatusCreated).JSON(m)
 }
 
 // Update updates a {{.Lower}} by id.
-func (h *Handlers) Update(c *fiber.Ctx) error {
+func (h *Handlers) Update(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
 	var m models.{{.Name}}
-	if err := c.BodyParser(&m); err != nil {
+	if err := c.Bind().Body(&m); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	m.ID = id
-	if err := h.repo.Update(c.Context(), &m); err != nil {
+	if err := h.repo.Update(c, &m); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.JSON(m)
 }
 
 // Delete deletes a {{.Lower}} by id.
-func (h *Handlers) Delete(c *fiber.Ctx) error {
+func (h *Handlers) Delete(c fiber.Ctx) error {
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
 	}
-	if err := h.repo.Delete(c.Context(), id); err != nil {
+	if err := h.repo.Delete(c, id); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
@@ -493,7 +493,7 @@ import (
 	"github.com/mithril-framework/mithril/internal/acl"
 	crudhandlers "github.com/mithril-framework/mithril/internal/crud/{{.Lower}}"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

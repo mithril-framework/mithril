@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Dashboard returns a fiber.Handler that serves GET /vendor/dashboard with optional start_date and end_date query params.
 // Uses raw SQL over vendor, lead, campaign, campaign_category. Requires JWT when mounted.
 func Dashboard(pool *pgxpool.Pool) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		if pool == nil {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 				"error": "service_unavailable", "message": "database not configured",
@@ -123,7 +123,7 @@ FROM campaign_stats
 ORDER BY vendor_id, campaign_id
 `
 
-		rows, err := pool.Query(c.Context(), query, args...)
+		rows, err := pool.Query(c, query, args...)
 		if err != nil {
 			log.Printf("vendor dashboard query error: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -397,3 +397,5 @@ type campaignStatsDTO struct {
 	ReturnedLeadIDs     []string `json:"returned_lead_ids,omitempty"`
 	AppointmentsLeadIDs []string `json:"appointments_lead_ids,omitempty"`
 }
+
+// fiber:context-methods migrated
