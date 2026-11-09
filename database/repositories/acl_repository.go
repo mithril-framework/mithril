@@ -326,3 +326,9 @@ func (r *ACLRepository) UserHasRoleName(ctx context.Context, userID uuid.UUID, r
 	}
 	return ok, nil
 }
+
+// EnsurePermission inserts a permission codename if it does not exist yet (idempotent).
+func (r *ACLRepository) EnsurePermission(ctx context.Context, codename, description string) error {
+	_, err := r.db.Exec(ctx, `INSERT INTO permissions (codename, description) VALUES ($1, $2) ON CONFLICT (codename) DO NOTHING`, codename, description)
+	return err
+}

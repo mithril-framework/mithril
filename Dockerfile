@@ -1,23 +1,21 @@
 # Multi-stage Dockerfile for mithril
 
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Bypass proxy when it returns 403 (e.g. in some Docker/network environments)
-ENV GOPROXY=direct
-
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /app/binary .
+# Views, static assets and migrations are embedded (embed.FS): the binary is the whole app.
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /app/binary .
 
 # Final stage
-FROM alpine:3.19
+FROM alpine:3.22
 
 RUN apk --no-cache add ca-certificates tzdata
 
@@ -40,4 +38,6 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget -q -O- http://localhost:4000/health || exit 1
 
+ENV APP_ENV=production
+# Migrations: docker run --env-file .env IMAGE ./app migrate up
 CMD ["./app"]

@@ -1,0 +1,23 @@
+// Command {{.Name}} is a Mithril application.
+//
+//	go run .                  serve HTTP (http://localhost:4000, API docs at /docs)
+//	go run . migrate up       apply migrations (embedded in the binary)
+//	go run . createsuperuser  create an admin user
+//	go run . help             all commands
+package main
+
+import (
+	"embed"
+
+	"github.com/mithril-framework/mithril/app"
+)
+
+//go:embed migrations
+var migrations embed.FS
+
+func main() {
+	a := app.Must(app.New(app.WithMigrations(migrations, "migrations")))
+	a.Register(resources()...)
+	routes(a)
+	app.Main(a)
+}

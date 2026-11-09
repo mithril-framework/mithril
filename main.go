@@ -1,221 +1,33 @@
+// Command mithril-reference is the framework's reference application: it is what contributors
+// run with `make run`, and it shows the same structure `mithril new` generates for your projects.
 package main
 
 import (
-	"bufio"
-	"context"
-	"fmt"
-	"log"
-	"os"
-	"strings"
+	"embed"
 
-	"github.com/mithril-framework/mithril/database/repositories"
-	"github.com/mithril-framework/mithril/internal/db"
-	"github.com/mithril-framework/mithril/internal/timezone"
-	"github.com/mithril-framework/mithril/routes"
-
-	"github.com/bytedance/sonic"
-	swagger "github.com/gofiber/contrib/v3/swaggerui"
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/compress"
-	"github.com/gofiber/fiber/v3/middleware/cors"
-	"github.com/gofiber/fiber/v3/middleware/favicon"
-	"github.com/gofiber/fiber/v3/middleware/healthcheck"
-	"github.com/gofiber/fiber/v3/middleware/helmet"
-	"github.com/gofiber/fiber/v3/middleware/logger"
-	"github.com/gofiber/fiber/v3/middleware/recover"
-	"github.com/gofiber/fiber/v3/middleware/requestid"
-	"github.com/gofiber/template/jet/v3"
-	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mithril-framework/mithril/app"
+	"github.com/mithril-framework/mithril/examples/blog"
 )
 
-var dbPool *pgxpool.Pool
-var userRepo *repositories.UserRepository
+//go:embed views
+var views embed.FS
+
+//go:embed public/assets
+var assets embed.FS
 
 func main() {
-	// Seed is manual-only via "make seed". Do not run seed from this process or on reload.
-	loadEnvFile(".env")
-	if err := timezone.InitFromEnv(); err != nil {
-		log.Fatal(err)
-	}
+	a := app.Must(app.New(
+		app.WithMigrations(blog.Migrations, "migrations"),
+		app.WithViews(views, "views", ".jet"),
+		app.WithStatic("/assets", assets, "public/assets"),
+	))
+	a.Register(blog.Resource())
 
-	if os.Getenv("LIST_ROUTES") == "1" {
-		app := setupApp(nil, nil, getEnv("JWT_SECRET", ""))
-		printRoutes(app)
-		os.Exit(0)
-	}
-
-	ctx := context.Background()
-	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {
-		dsn := db.DSNFromEnv()
-		pool, err := db.New(ctx, dsn)
-		if err != nil {
-			if isProductionEnv() {
-				log.Fatalf("database: %v", err)
-			}
-			log.Printf("warning: database connection failed (%v); starting without DB", err)
-		} else {
-			if err := pool.Ping(ctx); err != nil {
-				pool.Close()
-				if isProductionEnv() {
-					log.Fatalf("database ping: %v", err)
-				}
-				log.Printf("warning: database unavailable (%v); starting without DB (unset DB_HOST to hide this)", err)
-			} else {
-				defer pool.Close()
-				dbPool = pool
-				userRepo = repositories.NewUserRepository(pool)
-				log.Println("Database connected")
-			}
-		}
-	}
-
-	jwtSecret := resolveJWTSecret()
-	app := setupApp(dbPool, userRepo, jwtSecret)
-	port := getEnv("PORT", "4000")
-	log.Printf("Starting server on port %s", port)
-	log.Fatal(app.Listen(":" + port))
-}
-
-// setupApp creates the Fiber app and registers all middleware and routes.
-// pool and userRepo may be nil when listing routes (LIST_ROUTES=1).
-func setupApp(pool *pgxpool.Pool, userRepo *repositories.UserRepository, jwtSecret string) *fiber.App {
-	engine := jet.New("./views", ".jet")
-	engine.Reload(true) // reload templates in development
-
-	app := fiber.New(fiber.Config{
-		AppName:     getEnv("APP_NAME", "mithril"),
-		Views:       engine,
-		JSONEncoder: sonic.Marshal,
-		JSONDecoder: sonic.Unmarshal,
-		ErrorHandler: func(c fiber.Ctx, err error) error {
-			code := fiber.StatusInternalServerError
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-			return c.Status(code).JSON(fiber.Map{
-				"error":   true,
-				"message": err.Error(),
-				"code":    code,
-			})
-		},
+	a.Fiber.Get("/html", func(c fiber.Ctx) error {
+		return c.Render("demo", fiber.Map{"Title": "HTML Demo", "Message": "Hello from Jet"})
 	})
 
-	app.Use(requestid.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: strings.Split(corsOrigins(), ","),
-	}))
-	if _, err := os.Stat("./public/assets/favicon.ico"); err == nil {
-		app.Use(favicon.New(favicon.Config{
-			File: "./public/assets/favicon.ico",
-			URL:  "/favicon.ico",
-		}))
-	}
-	app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n",
-	}))
-	app.Use(recover.New())
-	if isHelmetEnabled() {
-		app.Use(helmet.New())
-	}
-	if isCompressionEnabled() {
-		app.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
-	}
-	app.Get(healthcheck.LivenessEndpoint, healthcheck.New())
-	app.Get(healthcheck.ReadinessEndpoint, healthcheck.New())
-	if _, err := os.Stat("./docs/swagger.json"); err == nil {
-		app.Use(swagger.New(swagger.Config{
-			BasePath: "/",
-			FilePath: "./docs/swagger.json",
-			Path:     "docs",
-			Title:    "Mithril API",
-			CacheAge: 0,
-		}))
-	}
-
-	routes.RegisterAll(app, pool, userRepo, jwtSecret)
-	return app
-}
-
-// printRoutes prints all registered routes (method, path, name) to stdout.
-func printRoutes(app *fiber.App) {
-	routes := app.GetRoutes(true)
-	fmt.Printf("%-8s %-40s %s\n", "METHOD", "PATH", "NAME")
-	fmt.Println(strings.Repeat("-", 80))
-	for _, r := range routes {
-		fmt.Printf("%-8s %-40s %s\n", r.Method, r.Path, r.Name)
-	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func isProductionEnv() bool {
-	return strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) == "production"
-}
-
-func resolveJWTSecret() string {
-	secret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
-	env := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
-	if env == "production" && secret == "" {
-		log.Fatal("JWT_SECRET must be set when APP_ENV=production")
-	}
-	if secret == "" {
-		secret = "secret"
-		log.Println("warning: using default JWT_SECRET; set JWT_SECRET in production")
-	}
-	return secret
-}
-
-func corsOrigins() string {
-	if v := strings.TrimSpace(os.Getenv("CORS_ORIGINS")); v != "" {
-		return v
-	}
-	return "http://localhost:3000,http://localhost:4000"
-}
-
-// isCompressionEnabled returns true when ENABLE_COMPRESSION is true, 1, or yes (case-insensitive).
-func isCompressionEnabled() bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_COMPRESSION")))
-	return v == "true" || v == "1" || v == "yes"
-}
-
-// isHelmetEnabled returns true when ENABLE_HELMET is true, 1, or yes (case-insensitive).
-func isHelmetEnabled() bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv("ENABLE_HELMET")))
-	return v == "true" || v == "1" || v == "yes"
-}
-
-// loadEnvFile reads KEY=VALUE lines from filename and sets them in the environment.
-// Only sets a variable if it is not already set. Skips empty lines and # comments.
-func loadEnvFile(filename string) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return // .env optional
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		idx := strings.Index(line, "=")
-		if idx <= 0 {
-			continue
-		}
-		key := strings.TrimSpace(line[:idx])
-		if key == "" {
-			continue
-		}
-		if os.Getenv(key) != "" {
-			continue // do not override existing env
-		}
-		value := strings.TrimSpace(line[idx+1:])
-		value = strings.Trim(value, `"`) // optional: remove surrounding quotes
-		os.Setenv(key, value)
-	}
+	app.Main(a)
 }

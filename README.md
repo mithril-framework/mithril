@@ -1,131 +1,98 @@
 # Mithril
 
-A batteries-included, AI-friendly Go web framework built on [Fiber](https://gofiber.io), inspired by Django, Laravel, FastAPI, and NestJS.
+A batteries-included, AI-friendly Go web framework built on [Fiber](https://gofiber.io), inspired by Django, Laravel and FastAPI. Mithril is a **library**: you import it, and framework fixes arrive with `go get -u`.
 
-**Documentation:** [mithril-docs-nine.vercel.app](https://mithril-docs-nine.vercel.app/docs/getting-started/introduction)
+**Documentation:** [mithril-docs-nine.vercel.app](https://mithril-docs-nine.vercel.app/docs/getting-started/introduction) · [Feature status](https://mithril-docs-nine.vercel.app/docs/getting-started/feature-status)
+
+```go
+type Post struct {
+	ID        uuid.UUID `json:"id"`
+	Title     string    `json:"title" validate:"required,max=200"`
+	Body      string    `json:"body" mithril:"text"`
+	AuthorID  uuid.UUID `json:"author_id" mithril:"owner"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+//go:embed migrations
+var migrations embed.FS
+
+func main() {
+	a := app.Must(app.New(app.WithMigrations(migrations, "migrations")))
+	a.Register(resource.Define[Post](resource.Options{Name: "posts"}))
+	app.Main(a) // serve | migrate up | routes | openapi | createsuperuser | acl | mcp
+}
+```
+
+That one registration gives you a validated, paginated CRUD API at `/api/posts`, ownership-aware permissions (`posts.view/add/change/change_any/delete/delete_any`), OpenAPI 3.1 operations, Swagger UI at `/docs` and an admin page at `/admin`, in a single self-contained binary.
 
 ## Features
 
-| Available now | Planned (see [ROADMAP.md](ROADMAP.md)) |
-|---------------|----------------------------------------|
-| JWT auth + refresh tokens | CSRF, rate limiting, 2FA |
-| Django-style RBAC | WebSockets, gRPC, queues |
-| PostgreSQL + goose migrations | OpenTelemetry, Sentry, Prometheus |
-| CRUD generator | FastAPI-style validation layer |
-| Admin panel + embedded DBMS | Object storage (S3/MinIO) |
-| Docker + Kubernetes + CI/CD | i18n, CMS module |
+| Shipped | Beta (v1.2) | Planned ([ROADMAP](ROADMAP.md)) |
+|---|---|---|
+| JWT access/refresh tokens (HS256, type-checked) | Importable library + `mithril new` template | CSRF, rate limiting, sessions |
+| Django-style RBAC + superusers | Declarative resources (`resource.Define[T]`) | Token revocation, 2FA, password reset |
+| Admin panel | Typed handlers with validation (`api.Get/Post/...`) | WebSockets, gRPC, queues |
+| PostgreSQL (pgx v5) | OpenAPI 3.1 generated from Go types | OpenTelemetry, Prometheus, Sentry |
+| Secure defaults (fail-closed secrets, Helmet, no leaked errors) | Embedded migrations, single-binary deploys | `migrate-gen`, DI container |
+| Docker, Kubernetes, CI | MCP server, `AGENTS.md`, `make:resource` generator | Testing helpers, i18n, storage |
 
-## Quick Start
-
-### Install CLI
+## Quick start
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mithril-framework/mithril/main/install.sh | sh
+go install github.com/mithril-framework/mithril/cmd/mithril@latest
+
+mithril new -module github.com/you/shop shop
+cd shop
+docker compose up -d postgres
+mithril migrate up
+mithril createsuperuser --email admin@shop.test --password 'change-me-now'
+mithril make:resource Product name:string:required price:float --owner
+mithril migrate up
+mithril serve            # http://localhost:4000 · /docs · /admin
 ```
 
-Or from source:
+## Packages
 
-```bash
-go install github.com/mithril-framework/mithril/cmd/mithril@v1.0.2
-```
+| Package | Purpose |
+|---|---|
+| `app` | Application builder, middleware stack, management commands |
+| `resource` | Declarative CRUD resources |
+| `api`, `openapi` | Typed handlers, validation, OpenAPI generation |
+| `auth`, `acl`, `users`, `admin` | JWT auth, RBAC, user management, admin panel |
+| `config`, `db`, `migrate` | Typed configuration, pgx pool, embedded goose migrations |
+| `mcpserver`, `scaffold` | MCP server for AI agents, code generators |
+| `pkg/utils` | Hashing, encryption, strings, time, pagination helpers |
 
-### Create a project
+## This repository
 
-```bash
-mithril new hello-mithril
-cd hello-mithril
-cp env.example .env
-make dc-up-postgres
-make migrate-up
-make seed              # demo user: user@example.com / password
-# or: make createsuperuser
-make run
-```
-
-Visit `http://localhost:4000` — API docs at `/docs`, health at `/health`.
-
-### Clone and run this repo
+The repository root is the **reference app**: it's built on the library and registers one example resource (`examples/blog`).
 
 ```bash
 git clone https://github.com/mithril-framework/mithril.git
 cd mithril
-make install
 cp env.example .env
 make dc-up-postgres
 make migrate-up
+make createsuperuser ARGS='--email admin@example.com --password change-me-now'
 make run
 ```
 
-## CLI Commands
-
-Inside a project, `mithril` delegates to `make`:
-
-```bash
-mithril migrate-up      # Run migrations
-mithril crud MODEL=Blog # Generate CRUD from model
-mithril seed              # Seed demo data
-mithril admin-enable      # Enable /admin panel
-mithril dbms              # Start embedded DBMS on :5050
-mithril --help            # Full command list
-```
-
-## Project Structure
-
-```
-├── main.go              # Application entry point
-├── routes/              # Route registration
-├── internal/            # Auth, ACL, admin, CRUD handlers
-├── database/            # Models, repositories, migrations
-├── cmd/                 # CLI tools (mithril, crud, acl, seed, …)
-├── pkg/utils/           # Shared utilities
-├── public/admin/        # Admin SPA
-└── infrastructure/      # Docker, K8s, compose services
-```
-
-## Configuration
-
-See [env.example](env.example). Required for production:
-
-- `JWT_SECRET` — must be set when `APP_ENV=production`
-- `DATABASE_URL` or `DB_*` — PostgreSQL connection
+Try framework changes in a separate project with `mithril new -local ../mithril demo`.
 
 ## Security
 
-> **Warning:** Change `JWT_SECRET` before deploying. Never commit `.env` files.
+- Outside `APP_ENV=development`, including when `APP_ENV` is unset, the server refuses to start without a strong `JWT_SECRET` (32+ bytes, not a placeholder).
+- Registration is off by default (`ENABLE_REGISTER=true` enables it).
+- Report vulnerabilities privately through GitHub security advisories.
 
-Registration is disabled by default. Set `ENABLE_REGISTER=true` to allow `POST /auth/register`.
+## Upgrading from 1.1
+
+Projects created with 1.1 were full clones of this repository. They keep working (`mithril <target>` still runs their `make` targets). To move to the library layout, create a new project and copy your models and migrations; existing databases upgrade with `migrate up` (see the [migration guide](https://mithril-docs-nine.vercel.app/docs/database/migrations#upgrading-a-pre-12-project)).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Troubleshooting
-
-**Wrong `mithril` on PATH**
-
-If `mithril --version` prints `dev` or a scaffold message instead of `mithril 1.x.x (github.com/mithril-framework/mithril)`, another binary is shadowing the framework CLI:
-
-```bash
-which -a mithril
-go install github.com/mithril-framework/mithril/cmd/mithril@v1.0.2
-export PATH="$(go env GOPATH)/bin:$PATH"
-# or symlink to /usr/local/bin:
-sudo "$(go env GOPATH)/bin/mithril" init
-mithril --version
-```
-
-**Quick login without interactive `createsuperuser`**
-
-```bash
-mithril seed
-# user@example.com / password
-```
-
-Or non-interactive superuser:
-
-```bash
-mithril createsuperuser --email admin@example.com --password 'your-secure-password'
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md). Run `go test ./...` before opening a PR.
 
 ## License
 

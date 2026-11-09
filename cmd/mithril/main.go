@@ -1,28 +1,42 @@
-// Command mithril is the global Mithril CLI.
+// Command mithril is the global Mithril CLI: it creates projects from an embedded template,
+// runs generators, and forwards every other command to the project's own binary (`go run . <cmd>`).
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
+	"embed"
+	"encoding/base64"
+	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/mithril-framework/mithril/pkg/version"
+	"github.com/mithril-framework/mithril/scaffold"
 )
 
 const sourceModule = "github.com/mithril-framework/mithril"
-const defaultRepoURL = "https://github.com/mithril-framework/mithril.git"
+
+//go:embed all:template
+var templateFS embed.FS
 
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
 		return
 	}
-
-	switch os.Args[1] {
+	cmd, args := os.Args[1], os.Args[2:]
+	var err error
+	switch cmd {
 	case "--version", "-v", "version":
 		fmt.Printf("mithril %s (%s)\n", version.Version, sourceModule)
 	case "ping":
@@ -30,29 +44,32 @@ func main() {
 	case "help", "--help", "-h":
 		printUsage()
 	case "init":
-		if err := cmdInit(); err != nil {
-			fmt.Fprintf(os.Stderr, "init: %v\n", err)
-			os.Exit(1)
-		}
+		err = cmdInit()
 	case "new":
-		name, modulePath, err := parseNewArgs(os.Args[2:])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
+		var o newOptions
+		if o, err = parseNewArgs(args); err == nil {
+			err = cmdNew(o)
 		}
-		if err := cmdNew(name, modulePath); err != nil {
-			fmt.Fprintf(os.Stderr, "new: %v\n", err)
-			os.Exit(1)
-		}
+	case "make:resource":
+		err = cmdMakeResource(args)
 	default:
-		if isProjectRoot() {
-			if err := runProjectCommand(os.Args[1], os.Args[2:]); err != nil {
-				os.Exit(1)
-			}
-			return
+		switch projectKind() {
+		case projectLibrary:
+			err = runGo(append([]string{"run", "."}, os.Args[1:]...))
+		case projectLegacy:
+			err = delegateMake(os.Args[1:])
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown command: %s (not in a Mithril project; use: mithril new <name>)\n", cmd)
+			printUsage()
+			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "Unknown command: %s (not in a Mithril project — run from project root or use: mithril new <name>)\n", os.Args[1])
-		printUsage()
+	}
+	if err != nil {
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			os.Exit(exit.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd, err)
 		os.Exit(1)
 	}
 }
@@ -61,46 +78,274 @@ func printUsage() {
 	fmt.Println(`Mithril CLI — batteries-included Go web framework
 
 Usage:
-  mithril --version          Show version (alias: version, ping)
-  mithril init               Symlink CLI to /usr/local/bin/mithril
-  mithril new [-module path] <name>
-  mithril <make-target>      Run make target inside a project
+  mithril new [-module path] [-local path] <name>   Create a project
+  mithril make:resource <Model> [field:type[:required]...] [--owner] [--name table] [--dry-run]
+  mithril <command> [args]                          Inside a project: runs "go run . <command>"
+  mithril --version | init | help
+
+Project commands (forwarded to your app):
+  serve · migrate up|down|status · routes · openapi · resources · createsuperuser · acl · dbms · mcp
+
+Field types: ` + strings.Join(scaffold.FieldTypes, " ") + `
 
 Examples:
-  mithril new hello-mithril
-  mithril new -module github.com/acme/api my-api
-  cd hello-mithril && mithril migrate-up
-  mithril run`)
+  mithril new -module github.com/acme/blog blog
+  cd blog && docker compose up -d postgres && mithril migrate up
+  mithril make:resource Post title:string:required body:text --owner
+  mithril serve`)
 }
 
-func parseNewArgs(args []string) (name, modulePath string, err error) {
-	modulePath = ""
-	rest := args
-	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
-		if rest[0] == "-module" && len(rest) > 1 {
-			modulePath = strings.TrimSpace(rest[1])
-			rest = rest[2:]
-			continue
+// ---- new ----------------------------------------------------------------------------------------
+
+type newOptions struct {
+	Name, Module, Local string
+}
+
+func parseNewArgs(args []string) (newOptions, error) {
+	usage := errors.New("usage: mithril new [-module path] [-local path-to-mithril-checkout] <project-name>")
+	fs := flag.NewFlagSet("new", flag.ContinueOnError)
+	fs.SetOutput(new(bytes.Buffer))
+	module := fs.String("module", "", "Go module path (default github.com/<you>/<name>)")
+	local := fs.String("local", os.Getenv("MITHRIL_LOCAL"), "use a local Mithril checkout (adds a replace directive)")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 1 {
+		return newOptions{}, usage
+	}
+	o := newOptions{Name: strings.TrimSpace(fs.Arg(0)), Module: strings.TrimSpace(*module), Local: *local}
+	if o.Name == "" {
+		return newOptions{}, usage
+	}
+	if o.Module == "" {
+		o.Module = defaultModulePath(o.Name)
+	}
+	return o, nil
+}
+
+var validName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+type templateData struct {
+	Name, Module, Version, Replace, Secret, DBName string
+}
+
+func cmdNew(o newOptions) error {
+	if !validName.MatchString(o.Name) || o.Name == "." || o.Name == ".." {
+		return fmt.Errorf("invalid project name %q", o.Name)
+	}
+	if _, err := os.Stat(o.Name); err == nil {
+		return fmt.Errorf("directory %q already exists", o.Name)
+	}
+	secret, err := randomSecret()
+	if err != nil {
+		return err
+	}
+	data := templateData{Name: o.Name, Module: o.Module, Version: version.Version, Secret: secret,
+		DBName: strings.NewReplacer("-", "_", ".", "_").Replace(strings.ToLower(o.Name))}
+	if o.Local != "" {
+		abs, err := filepath.Abs(o.Local)
+		if err != nil {
+			return err
 		}
-		return "", "", fmt.Errorf("usage: mithril new [-module path] <project-name>")
+		if _, err := os.Stat(filepath.Join(abs, "go.mod")); err != nil {
+			return fmt.Errorf("-local %s: not a Mithril checkout (no go.mod)", abs)
+		}
+		data.Replace = abs
 	}
-	if len(rest) != 1 {
-		return "", "", fmt.Errorf("usage: mithril new [-module path] <project-name>")
+	fmt.Printf("Creating %s (module %s)...\n", o.Name, o.Module)
+	if err := renderTemplate(o.Name, data); err != nil {
+		_ = os.RemoveAll(o.Name)
+		return err
 	}
-	name = strings.TrimSpace(rest[0])
-	if name == "" {
-		return "", "", fmt.Errorf("usage: mithril new [-module path] <project-name>")
+	// .env gets the generated secret and is private to the user; env.example keeps it blank.
+	envExample, _ := os.ReadFile(filepath.Join(o.Name, "env.example"))
+	if err := os.WriteFile(filepath.Join(o.Name, ".env"), envExample, 0o600); err != nil {
+		return err
 	}
-	if modulePath == "" {
-		modulePath = defaultModulePath(name)
+	example := strings.Replace(string(envExample), "JWT_SECRET="+secret, "JWT_SECRET=", 1)
+	if err := os.WriteFile(filepath.Join(o.Name, "env.example"), []byte(example), 0o644); err != nil {
+		return err
 	}
-	return name, modulePath, nil
+	tidy := exec.Command("go", "mod", "tidy")
+	tidy.Dir, tidy.Stdout, tidy.Stderr = o.Name, os.Stdout, os.Stderr
+	if err := tidy.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: go mod tidy failed (%v); run it inside %s once the module is reachable\n", err, o.Name)
+	}
+	gitInit := exec.Command("git", "init", "-q", "-b", "main")
+	gitInit.Dir = o.Name
+	_ = gitInit.Run()
+
+	fmt.Printf(`
+Project created: %[1]s
+
+  cd %[1]s
+  docker compose up -d postgres
+  mithril migrate up
+  mithril createsuperuser
+  mithril serve                  # http://localhost:4000  · /docs  · /admin
+
+Add a resource:  mithril make:resource Post title:string:required body:text --owner
+AI agents:       AGENTS.md and .mcp.json are included (go run . mcp)
+`, o.Name)
+	return nil
 }
 
-// defaultModulePath picks a Go module path. Uses github.com/<user>/<name> when
-// GitHub CLI or git config provides a username; otherwise the project name.
+// renderTemplate writes the embedded template into dir. "x.tmpl" files are rendered with data;
+// "gitignore" and "mcp.json" become dotfiles.
+func renderTemplate(dir string, data templateData) error {
+	root, err := fs.Sub(templateFS, "template")
+	if err != nil {
+		return err
+	}
+	return fs.WalkDir(root, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dir, filepath.FromSlash(p))
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		b, err := fs.ReadFile(root, p)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(p, ".tmpl") {
+			target = strings.TrimSuffix(target, ".tmpl")
+			t, err := template.New(p).Option("missingkey=error").Parse(string(b))
+			if err != nil {
+				return fmt.Errorf("template %s: %w", p, err)
+			}
+			var buf bytes.Buffer
+			if err := t.Execute(&buf, data); err != nil {
+				return fmt.Errorf("template %s: %w", p, err)
+			}
+			b = buf.Bytes()
+		}
+		switch filepath.Base(target) {
+		case "gitignore":
+			target = filepath.Join(filepath.Dir(target), ".gitignore")
+		case "mcp.json":
+			target = filepath.Join(filepath.Dir(target), ".mcp.json")
+		}
+		return os.WriteFile(target, b, 0o644)
+	})
+}
+
+// ---- generators ---------------------------------------------------------------------------------
+
+func cmdMakeResource(args []string) error {
+	fs := flag.NewFlagSet("make:resource", flag.ContinueOnError)
+	owner := fs.Bool("owner", false, "rows belong to the user who created them")
+	name := fs.String("name", "", "resource/table name (default: plural snake_case)")
+	dry := fs.Bool("dry-run", false, "print the files without writing them")
+	// Allow flags after positional arguments: mithril make:resource Post title:string --owner
+	var positional, flags []string
+	for _, a := range args {
+		switch {
+		case strings.HasPrefix(a, "-"):
+			flags = append(flags, a)
+		case len(flags) > 0 && (flags[len(flags)-1] == "--name" || flags[len(flags)-1] == "-name"):
+			flags = append(flags, a)
+		default:
+			positional = append(positional, a)
+		}
+	}
+	if err := fs.Parse(flags); err != nil {
+		return err
+	}
+	if len(positional) < 1 {
+		return errors.New("usage: mithril make:resource <Model> [field:type[:required]...] [--owner] [--name table] [--dry-run]")
+	}
+	p, err := scaffold.LoadProject(".")
+	if err != nil {
+		return err
+	}
+	fields, err := scaffold.ParseFields(positional[1:])
+	if err != nil {
+		return err
+	}
+	files, err := p.PlanResource(scaffold.ResourceSpec{Model: positional[0], Name: *name, Fields: fields, Owner: *owner}, time.Now())
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		fmt.Printf("%-6s %s\n", f.Action, f.Path)
+		if *dry {
+			fmt.Println(indent(f.Content))
+		}
+	}
+	if *dry {
+		return nil
+	}
+	if err := p.Apply(files); err != nil {
+		return err
+	}
+	fmt.Println("\nNext: mithril migrate up")
+	return nil
+}
+
+func indent(s string) string {
+	return "    " + strings.ReplaceAll(strings.TrimRight(s, "\n"), "\n", "\n    ")
+}
+
+// ---- project detection & delegation -------------------------------------------------------------
+
+type kind int
+
+const (
+	projectNone kind = iota
+	projectLibrary
+	projectLegacy
+)
+
+// projectKind distinguishes library-based projects (go.mod requires Mithril, main.go exists) from
+// pre-1.2 projects that were full clones of the framework (Makefile with migrate-up targets).
+func projectKind() kind {
+	mod, err := os.ReadFile("go.mod")
+	if err != nil {
+		return projectNone
+	}
+	if _, err := os.Stat("main.go"); err != nil {
+		return projectNone
+	}
+	if requiresMithril(string(mod)) {
+		return projectLibrary
+	}
+	if mk, err := os.ReadFile("Makefile"); err == nil && strings.Contains(string(mk), "migrate-up:") {
+		return projectLegacy
+	}
+	return projectNone
+}
+
+var requireRe = regexp.MustCompile(`(?m)^\s*(require\s+)?github\.com/mithril-framework/mithril\s+v`)
+
+func requiresMithril(goMod string) bool { return requireRe.MatchString(goMod) }
+
+func runGo(args []string) error {
+	goPath, err := exec.LookPath("go")
+	if err != nil {
+		return errors.New("go not found in PATH")
+	}
+	c := exec.Command(goPath, args...)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return c.Run()
+}
+
+func delegateMake(args []string) error {
+	makePath, err := exec.LookPath("make")
+	if err != nil {
+		return errors.New("make not found in PATH")
+	}
+	c := exec.Command(makePath, args...)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return c.Run()
+}
+
+// ---- misc ---------------------------------------------------------------------------------------
+
+// lookupGitHubLogin is a variable so tests do not depend on the machine's gh/git configuration.
+var lookupGitHubLogin = githubLogin
+
+// defaultModulePath uses github.com/<user>/<name> when a GitHub username is known, else the name.
 func defaultModulePath(projectName string) string {
-	if login := githubLogin(); login != "" {
+	if login := lookupGitHubLogin(); login != "" {
 		return "github.com/" + login + "/" + projectName
 	}
 	return projectName
@@ -116,86 +361,23 @@ func githubLogin() string {
 		}
 	}
 	if out, err := exec.Command("git", "config", "--get", "github.user").Output(); err == nil {
-		if login := strings.TrimSpace(string(out)); login != "" {
-			return login
-		}
+		return strings.TrimSpace(string(out))
 	}
 	return ""
 }
 
-func isProjectRoot() bool {
-	if _, err := os.Stat("Makefile"); err != nil {
-		return false
-	}
-	if _, err := os.Stat("main.go"); err != nil {
-		return false
-	}
-	return true
-}
-
-// runProjectCommand runs a project command. Go tools with CLI flags bypass make
-// so flags are not swallowed by GNU make (e.g. createsuperuser --email).
-func runProjectCommand(cmd string, args []string) error {
-	switch cmd {
-	case "createsuperuser":
-		return runGoTool("./cmd/createsuperuser", args)
-	default:
-		return delegateMake(append([]string{cmd}, args...))
-	}
-}
-
-func runGoTool(pkg string, args []string) error {
-	goPath, err := exec.LookPath("go")
-	if err != nil {
-		return fmt.Errorf("go not found in PATH")
-	}
-	cmdArgs := append([]string{"run", pkg}, args...)
-	c := exec.Command(goPath, cmdArgs...)
-	c.Stdin = os.Stdin
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	c.Dir, _ = os.Getwd()
-	if err := c.Run(); err != nil {
-		if exit, ok := err.(*exec.ExitError); ok {
-			os.Exit(exit.ExitCode())
-		}
-		return err
-	}
-	return nil
-}
-
-func delegateMake(args []string) error {
-	makePath, err := exec.LookPath("make")
-	if err != nil {
-		return fmt.Errorf("make not found in PATH")
-	}
-	cmd := exec.Command(makePath, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Dir, _ = os.Getwd()
-	if err := cmd.Run(); err != nil {
-		if exit, ok := err.(*exec.ExitError); ok {
-			os.Exit(exit.ExitCode())
-		}
-		return err
-	}
-	return nil
-}
-
 func cmdInit() error {
+	if runtime.GOOS == "windows" {
+		return errors.New("mithril init is not supported on Windows; add the binary directory to PATH manually")
+	}
 	exe, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	exe, err = filepath.EvalSymlinks(exe)
-	if err != nil {
+	if exe, err = filepath.EvalSymlinks(exe); err != nil {
 		return err
 	}
 	target := "/usr/local/bin/mithril"
-	if runtime.GOOS == "windows" {
-		return fmt.Errorf("mithril init is not supported on Windows; add the binary directory to PATH manually")
-	}
 	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -203,152 +385,14 @@ func cmdInit() error {
 		return fmt.Errorf("could not symlink %s -> %s: %w\nTry: sudo mithril init", exe, target, err)
 	}
 	fmt.Printf("Linked %s -> %s\n", target, exe)
-	fmt.Println("Replaced any previous mithril on /usr/local/bin (including old scaffold CLIs).")
 	return nil
 }
 
-func cmdNew(name, modulePath string) error {
-	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
-		return fmt.Errorf("invalid project name: %s", name)
+// randomSecret returns a base64url-encoded 32-byte random value for JWT_SECRET.
+func randomSecret() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
-	if _, err := os.Stat(name); err == nil {
-		return fmt.Errorf("directory %q already exists", name)
-	}
-
-	repoURL := os.Getenv("MITHRIL_SOURCE")
-	if repoURL == "" {
-		repoURL = defaultRepoURL
-	}
-
-	fmt.Printf("Creating project %q (module %s)...\n", name, modulePath)
-	clone := exec.Command("git", "clone", "--depth", "1", repoURL, name)
-	clone.Stdout = os.Stdout
-	clone.Stderr = os.Stderr
-	if err := clone.Run(); err != nil {
-		return fmt.Errorf("git clone failed (is git installed?): %w", err)
-	}
-
-	if err := scrubScaffold(name); err != nil {
-		return err
-	}
-	if err := rewriteModule(name, modulePath); err != nil {
-		return fmt.Errorf("rewrite module: %w", err)
-	}
-
-	initGit := exec.Command("git", "init", "-b", "main")
-	initGit.Dir = name
-	initGit.Stdout = os.Stdout
-	initGit.Stderr = os.Stderr
-	_ = initGit.Run()
-
-	envExample := filepath.Join(name, "env.example")
-	envFile := filepath.Join(name, ".env")
-	if data, err := os.ReadFile(envExample); err == nil {
-		content := strings.ReplaceAll(string(data), "APP_NAME=mithril", "APP_NAME="+name)
-		_ = os.WriteFile(envFile, []byte(content), 0644)
-	}
-
-	tidy := exec.Command("go", "mod", "tidy")
-	tidy.Dir = name
-	tidy.Stdout = os.Stdout
-	tidy.Stderr = os.Stderr
-	_ = tidy.Run()
-
-	fmt.Printf(`
-Project created: %s (module %s)
-
-Next steps:
-  cd %s
-  make dc-up-postgres
-  mithril migrate-up
-  mithril seed              # demo user: user@example.com / password
-  mithril run
-
-Docs: https://mithril-docs-nine.vercel.app/docs/getting-started/quick-start
-`, name, modulePath, name)
-	if !strings.Contains(modulePath, "github.com/") {
-		fmt.Printf("\nTip: for a conventional Go module path, recreate with:\n  mithril new -module github.com/you/%s %s\n", name, name)
-	}
-	return nil
-}
-
-func scrubScaffold(root string) error {
-	remove := []string{
-		".git",
-		".env",
-		".env.bak",
-		".admin-panel-enabled",
-		".dbms-enabled",
-		"t.md",
-		"todo.md",
-		"mithril-rev",
-		"seed",
-		"swagger",
-		"__pycache__",
-		"internal/vendor",
-		"examples/vendor-demo",
-	}
-	for _, rel := range remove {
-		_ = os.RemoveAll(filepath.Join(root, rel))
-	}
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if d.Type()&fs.ModeSymlink != 0 {
-			return nil
-		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		if info.Mode()&0111 != 0 && strings.HasPrefix(filepath.Base(path), ".") == false {
-			base := filepath.Base(path)
-			if base == "mithril" || base == "install.sh" {
-				return nil
-			}
-			if info.Size() > 1_000_000 && !strings.HasSuffix(path, ".sh") {
-				_ = os.Remove(path)
-			}
-		}
-		return nil
-	})
-}
-
-func rewriteModule(root, modulePath string) error {
-	goMod := filepath.Join(root, "go.mod")
-	data, err := os.ReadFile(goMod)
-	if err != nil {
-		return err
-	}
-	lines := strings.Split(string(data), "\n")
-	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "module ") {
-			lines[i] = "module " + modulePath
-			break
-		}
-	}
-	if err := os.WriteFile(goMod, []byte(strings.Join(lines, "\n")), 0644); err != nil {
-		return err
-	}
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		updated := strings.ReplaceAll(string(content), sourceModule, modulePath)
-		if updated != string(content) {
-			return os.WriteFile(path, []byte(updated), 0644)
-		}
-		return nil
-	})
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }

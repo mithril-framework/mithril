@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mithril-framework/mithril/internal/db"
-	"github.com/mithril-framework/mithril/internal/db/backup"
-	"github.com/mithril-framework/mithril/internal/timezone"
+	"github.com/mithril-framework/mithril/config"
+	"github.com/mithril-framework/mithril/db"
+	"github.com/mithril-framework/mithril/db/backup"
 )
 
 func main() {
 	loadEnvFile(".env")
-	if err := timezone.InitFromEnv(); err != nil {
+	if err := config.InitTimezone(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -55,10 +55,10 @@ func main() {
 	case "restore":
 		_ = restoreCmd.Parse(os.Args[2:])
 		runRestore(restoreOptions{
-			file:     *restoreFile,
-			force:    *restoreForce,
+			file:      *restoreFile,
+			force:     *restoreForce,
 			useDocker: *restoreUseDocker,
-			useGo:    *restoreUseGo,
+			useGo:     *restoreUseGo,
 		})
 	case "list":
 		runList()
@@ -70,11 +70,11 @@ func main() {
 
 type backupOptions struct {
 	schemaOnly, dataOnly, compress, useDocker, useGo bool
-	format, output                                    string
+	format, output                                   string
 }
 
 type restoreOptions struct {
-	file              string
+	file                    string
 	force, useDocker, useGo bool
 }
 

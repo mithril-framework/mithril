@@ -1,0 +1,16 @@
+.PHONY: run test build migrate db routes openapi
+
+run:      ## Start the server
+	go run .
+test:     ## Run tests
+	go test ./...
+build:    ## Build a single self-contained binary
+	CGO_ENABLED=0 go build -trimpath -o bin/{{.Name}} .
+db:       ## Start PostgreSQL in Docker
+	docker compose up -d postgres
+migrate:  ## Apply migrations
+	go run . migrate up
+routes:   ## List routes
+	go run . routes
+openapi:  ## Write openapi.json
+	go run . openapi -o openapi.json

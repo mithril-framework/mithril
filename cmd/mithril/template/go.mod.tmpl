@@ -1,0 +1,9 @@
+module {{.Module}}
+
+go 1.26
+
+require github.com/mithril-framework/mithril v{{.Version}}
+{{- if .Replace}}
+
+replace github.com/mithril-framework/mithril => {{.Replace}}
+{{- end}}
