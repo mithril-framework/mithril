@@ -1,4 +1,5 @@
-# CI: run tests and publish Docker image to GHCR on push to main.
+# CI: on every push to main (direct or a merged PR): run tests, publish a GitHub release with CLI
+# binaries (see the release job for how the version is chosen), and push the Docker image to GHCR.
 # No Kubernetes deploy — use infrastructure/k8s/ manually when you have a cluster.
 name: CI
 
@@ -52,8 +53,8 @@ jobs:
 
       - name: Verify version output
         run: |
-          ./bin/mithril --version | grep -q 'mithril 1.3.0 (github.com/mithril-framework/mithril)'
-          ./bin/mithril ping | grep -q 'mithril 1.3.0 ping ok'
+          ./bin/mithril --version | grep -Eq '^mithril [0-9]+\.[0-9]+\.[0-9]+ \(github\.com/mithril-framework/mithril\)$'
+          ./bin/mithril ping | grep -Eq '^mithril [0-9]+\.[0-9]+\.[0-9]+ ping ok$'
 
       - name: Scaffold new project
         run: |
@@ -69,7 +70,7 @@ jobs:
       - name: Install via go install (end-user path)
         run: |
           GOPROXY=direct go install ./cmd/mithril
-          "$(go env GOPATH)/bin/mithril" --version | grep -q 'mithril 1.3.0 (github.com/mithril-framework/mithril)'
+          "$(go env GOPATH)/bin/mithril" --version | grep -Eq '^mithril [0-9]+\.[0-9]+\.[0-9]+ \(github\.com/mithril-framework/mithril\)$'
           "$(go env GOPATH)/bin/mithril" new smoke-install
           test -f smoke-install/main.go
 
@@ -82,6 +83,98 @@ jobs:
           else
             echo "proxy may still serve v0.1.0 as @latest; install.sh uses GOPROXY=direct"
           fi
+
+  # Every push to main publishes a release, after the tests and the CLI smoke test pass.
+  # Version: pkg/version.Base if its tag doesn't exist yet and it is newer than every tag (bump Base
+  # for a minor/major release), otherwise the next patch after the newest vX.Y.Z tag.
+  release:
+    runs-on: ubuntu-latest
+    needs: [test, cli-smoke]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false # two quick merges must not compute the same version
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all tags
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Choose version
+        id: version
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          if [ -n "$(git tag --points-at HEAD --list 'v[0-9]*')" ]; then
+            echo "HEAD is already released as $(git tag --points-at HEAD --list 'v[0-9]*' | head -1); nothing to do"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base=$(sed -n 's/^const Base = "\([0-9]*\.[0-9]*\.[0-9]*\)"$/\1/p' pkg/version/version.go)
+          [ -n "$base" ] || { echo "could not read Base from pkg/version/version.go" >&2; exit 1; }
+          latest=$(git tag --list 'v[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | sort -V | tail -1 || true)
+          if [ -z "$latest" ]; then
+            next=$base
+          elif ! git rev-parse -q --verify "refs/tags/v$base" >/dev/null &&
+               [ "$(printf '%s\n%s\n' "$latest" "$base" | sort -V | tail -1)" = "$base" ]; then
+            next=$base
+          else
+            IFS=. read -r major minor patch <<< "$latest"
+            next="$major.$minor.$((patch + 1))"
+          fi
+          echo "latest tag: ${latest:-none}, Base: $base, releasing v$next"
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Build binaries
+        if: steps.version.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os=${target%/*}; arch=${target#*/}
+            name="mithril_${VERSION}_${os}_${arch}"
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            mkdir -p "build/$name"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X github.com/mithril-framework/mithril/pkg/version.Version=${VERSION}" \
+              -o "build/$name/mithril$ext" ./cmd/mithril
+            cp LICENSE README.md "build/$name/"
+            if [ "$os" = windows ]; then
+              (cd build && zip -qr "../dist/$name.zip" "$name")
+            else
+              tar -C build -czf "dist/$name.tar.gz" "$name"
+            fi
+          done
+          (cd dist && sha256sum -- * > checksums.txt)
+          "./build/mithril_${VERSION}_linux_amd64/mithril" --version | grep -Fq "mithril ${VERSION} "
+          ls -la dist
+
+      - name: Publish release
+        if: steps.version.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" dist/* \
+            --target "${GITHUB_SHA}" \
+            --title "v${VERSION}" \
+            --generate-notes
+
+      - name: Warm the Go module proxy (so go install ...@latest sees it)
+        if: steps.version.outputs.skip == 'false'
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go list -m "github.com/mithril-framework/mithril@v${VERSION}"
 
   build:
     runs-on: ubuntu-latest

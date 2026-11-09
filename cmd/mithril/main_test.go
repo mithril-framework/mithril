@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -69,8 +70,8 @@ func TestRenderTemplate(t *testing.T) {
 	}
 }
 
-func TestVersionConstant(t *testing.T) {
-	if version.Version != "1.3.0" {
-		t.Fatalf("expected 1.3.0, got %q", version.Version)
+func TestVersionIsSemver(t *testing.T) {
+	if !regexp.MustCompile(`^\d+\.\d+\.\d+$`).MatchString(version.Version) {
+		t.Fatalf("version %q is not MAJOR.MINOR.PATCH", version.Version)
 	}
 }
