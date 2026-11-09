@@ -1,0 +1,30 @@
+package main
+
+import (
+	"github.com/gofiber/fiber/v3"
+
+	"github.com/mithril-framework/mithril/api"
+	"github.com/mithril-framework/mithril/app"
+)
+
+// HelloIn is bound from the query string and validated before the handler runs.
+type HelloIn struct {
+	Name string `query:"name" validate:"max=50" doc:"Who to greet"`
+}
+
+// HelloOut is the JSON response; its schema appears in /openapi.json automatically.
+type HelloOut struct {
+	Message string `json:"message" example:"Hello, world"`
+}
+
+// routes registers custom endpoints. Typed handlers (api.Get/Post/...) are documented in the
+// OpenAPI spec from their Go types; a.API requires a valid access token, a.Public does not.
+func routes(a *app.App) {
+	api.Get(a.Public, "/hello", func(c fiber.Ctx, in *HelloIn) (*HelloOut, error) {
+		name := in.Name
+		if name == "" {
+			name = "world"
+		}
+		return &HelloOut{Message: "Hello, " + name}, nil
+	}, api.Op{Summary: "Say hello", Tags: []string{"examples"}})
+}

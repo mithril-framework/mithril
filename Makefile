@@ -1,6 +1,6 @@
 # mithril Makefile
 
-.PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run crud dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes swagger secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status migrate-reset seed createsuperuser install-tools kill admin-enable admin-disable dbms dbms-enable dbms-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
+.PHONY: help init install run run-dev run-air build build-linux test clean docker-build docker-run dc dc-run dc-stop dc-start dc-down dc-logs backup restore backup-list routes openapi secret hash sha256 sha512 encode decode migrate-up migrate-down migrate-status seed createsuperuser kill admin-enable admin-disable dbms dbms-enable dbms-disable acl acl-superuser-set acl-superuser-unset acl-role-create acl-role-delete acl-permission-create acl-permission-delete acl-assign-role acl-revoke-role acl-assign-permission-role acl-revoke-permission-role acl-assign-permission-user acl-revoke-permission-user
 
 # Default target
 help: ## Show this help message
@@ -17,10 +17,6 @@ install: ## Install dependencies
 i: ## Install dependencies
 	go mod tidy
 	go mod download
-
-crud: ## Generate CRUD (repository, handlers, routes) from model. Usage: make crud MODEL=User
-	@test -n "$$MODEL" || (echo "Usage: make crud MODEL=User"; exit 1); \
-	go run ./cmd/crud "$$MODEL"
 
 run: ## Run the application
 	@echo "Starting application..."
@@ -117,43 +113,14 @@ clean: ## Clean build artifacts
 	rm -rf tmp/
 	rm -f coverage.out coverage.html
 
-install-tools: ## Install goose CLI for migrations
-	go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
+migrate-up: ## Apply core + app migrations (embedded; reads DATABASE_URL or DB_* from .env)
+	go run . migrate up
 
-migrate-up: ## Run database migrations up (set DATABASE_URL or DB_* in .env)
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
-	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
-	fi; \
-	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* (e.g. DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" up
-
-migrate-down: ## Run database migrations down
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
-	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
-	fi; \
-	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" down
+migrate-down: ## Roll back the latest app migration
+	go run . migrate down
 
 migrate-status: ## Show migration status
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
-	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
-	fi; \
-	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" status
-
-# Use after manually dropping tables (e.g. users). Clears Goose version table so migrate-up re-runs all migrations.
-migrate-reset: ## Clear migration history and re-run all migrations (requires psql)
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
-	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
-	fi; \
-	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env"; exit 1); \
-	echo "Clearing goose_db_version and re-running migrations..."; \
-	psql "$$DATABASE_URL" -c "DELETE FROM goose_db_version;" && \
-	go run github.com/pressly/goose/v3/cmd/goose@v3.24.1 -dir database/migrations postgres "$$DATABASE_URL" up
+	go run . migrate status
 
 backup: ## Create database backup (compressed SQL in database/backups). Uses pg_dump, Docker, or Go.
 	@[ -f .env ] && set -a && . ./.env && set +a; \
@@ -175,12 +142,10 @@ backup-list: ## List backups in database/backups
 	@go run ./cmd/backup list
 
 routes: ## List all registered routes (no server start)
-	@[ -f .env ] && set -a && . ./.env && set +a; LIST_ROUTES=1 go run .
+	go run . routes
 
-swagger: ## Regenerate OpenAPI schema from route files via OpenAI (OPENAI_API_KEY in .env)
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	test -n "$$OPENAI_API_KEY" || { echo "Set OPENAI_API_KEY in .env"; exit 1; }; \
-	go run ./cmd/swagger
+openapi: ## Write the OpenAPI 3.1 document generated from Go types to openapi.json
+	go run . openapi -o openapi.json
 
 secret: ## Generate a new JWT_SECRET and update .env
 	@[ -f .env ] || { echo "Create .env first (e.g. copy from .env.sample)"; exit 1; }; \
@@ -216,13 +181,8 @@ seed: ## Seed database (demo user). Run migrate-up first. Loads .env like migrat
 	@[ -f .env ] && set -a && . ./.env && set +a; \
 	touch .seed-allowed && ALLOW_SEED=1 go run ./cmd/seed; rm -f .seed-allowed
 
-createsuperuser: ## Interactive or non-interactive superuser (--email, --password, or CREATESUPERUSER_* env)
-	@[ -f .env ] && set -a && . ./.env && set +a; \
-	if [ -z "$$DATABASE_URL" ] && [ -n "$$DB_HOST" ]; then \
-	  DATABASE_URL="postgres://$${DB_USER:-postgres}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT:-5432}/$${DB_NAME:-mithril_rev}?sslmode=$${DB_SSLMODE:-disable}"; export DATABASE_URL; \
-	fi; \
-	test -n "$$DATABASE_URL" || (echo "Set DATABASE_URL or DB_* in .env (same as migrate-up)"; exit 1); \
-	go run ./cmd/createsuperuser $(ARGS)
+createsuperuser: ## Interactive or non-interactive superuser (ARGS='--email a@b.c --password ...')
+	go run . createsuperuser $(ARGS)
 
 admin-enable: ## Enable admin panel (creates .admin-panel-enabled; or set ENABLE_ADMIN_PANEL=true)
 	@touch .admin-panel-enabled && echo "Admin panel enabled (sentinel .admin-panel-enabled). Restart the app."

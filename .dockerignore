@@ -9,5 +9,4 @@ database/backups/*.gz
 .env.*
 !env.example
 *.json
-!docs/swagger.json
 .DS_Store

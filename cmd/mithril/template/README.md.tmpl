@@ -1,0 +1,19 @@
+# {{.Name}}
+
+A [Mithril](https://github.com/mithril-framework/mithril) application.
+
+```bash
+docker compose up -d postgres    # or point DB_* in .env at your own PostgreSQL
+go run . migrate up
+go run . createsuperuser
+go run .                         # http://localhost:4000 · /docs · /admin
+```
+
+Add a resource with CRUD API, OpenAPI docs, permissions and an admin page:
+
+```bash
+mithril make:resource Post title:string:required body:text --owner
+go run . migrate up
+```
+
+Build a single self-contained binary with `make build`, or a container with `docker build .`.

@@ -10,15 +10,22 @@ This document tracks planned features and milestones. Items marked **Done** ship
 - [x] Docs aligned with real codebase
 - [x] Security hygiene (JWT, CORS, auth stubs)
 
-## Phase 2 — Developer Experience
+## Phase 2 — Developer Experience (v1.2, beta)
 
-- [ ] `migrate-gen` — generate migrations from models
-- [ ] CRUD generator: AST-based route registration, dry-run improvements
-- [ ] Project template polish and more scaffolds
-- [ ] HTTP handler test suite expansion
+- [x] Importable library (`app.New`, `app.Main`) and thin `mithril new` template
+- [x] Declarative resources: CRUD + validation + OpenAPI + permissions + admin from one struct
+- [x] Typed handlers with binding and validation (FastAPI-style)
+- [x] OpenAPI 3.1 generated from Go types (replaces AI-generated Swagger)
+- [x] Embedded migrations, views and assets: single-binary deploys
+- [x] `mithril make:resource` generator with dry run
+- [x] HTTP handler test suite expansion (auth, users, resources, api, app, scaffold)
+- [ ] `migrate-gen`: generate migrations from model diffs
+- [ ] Resource hooks (before/after save), filters, search and relationship preloading
+- [ ] `mithriltest` helpers (transactional DB, `ActingAs(user)`)
 
 ## Phase 3 — Security & Middleware
 
+- [ ] Server-side sessions with refresh-token rotation and revocation
 - [ ] CSRF protection
 - [ ] Rate limiting (per-IP, per-user, per-route)
 - [ ] Session management (DB-backed)
@@ -50,9 +57,9 @@ This document tracks planned features and milestones. Items marked **Done** ship
 
 ## Phase 7 — AI & Tooling
 
-- [ ] AI assistant integration
-- [ ] MCP server support
-- [ ] Cursor skills / rules templates
+- [x] MCP server (`go run . mcp`): routes, resources, OpenAPI, migrations, scaffold_resource
+- [x] `AGENTS.md` and `.mcp.json` in generated projects
+- [ ] More MCP tools (run tests, read logs, explain permissions)
 
 ## Already Available
 

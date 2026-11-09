@@ -1,0 +1,27 @@
+package main
+
+import (
+	"net/http/httptest"
+	"testing"
+
+	"github.com/mithril-framework/mithril/app"
+	"github.com/mithril-framework/mithril/config"
+)
+
+func TestHello(t *testing.T) {
+	a, err := app.New(app.WithEnvFile(""), app.WithoutDatabase(), app.WithConfig(config.Config{
+		AppName: "test", Env: "test", JWTSecret: "test-secret-test-secret-test-secret",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Register(resources()...)
+	routes(a)
+	resp, err := a.Fiber.Test(httptest.NewRequest("GET", "/hello?name=Ada", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+}

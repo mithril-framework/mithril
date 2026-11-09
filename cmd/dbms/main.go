@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mithril-framework/mithril/internal/dbms"
+	"github.com/mithril-framework/mithril/dbms"
 )
 
 func main() {

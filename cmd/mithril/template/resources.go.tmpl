@@ -1,0 +1,15 @@
+package main
+
+import (
+	"github.com/mithril-framework/mithril/resource"
+)
+
+// resources lists the declarative resources: each gets CRUD under /api/<name>, OpenAPI docs,
+// permissions (<name>.view/add/change/delete) and an admin panel page.
+//
+// Add one with: mithril make:resource Post title:string:required body:text --owner
+func resources() []resource.Resource {
+	return []resource.Resource{
+		// mithril:resources
+	}
+}

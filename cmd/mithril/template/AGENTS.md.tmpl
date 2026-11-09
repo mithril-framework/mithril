@@ -1,0 +1,26 @@
+# Agent guide for {{.Name}}
+
+This is a [Mithril](https://github.com/mithril-framework/mithril) application (Go, Fiber v3, PostgreSQL).
+
+## Commands
+- `go run .` serves HTTP on :4000. OpenAPI: `/openapi.json`, Swagger UI: `/docs`, admin: `/admin`.
+- `go run . migrate up|down|status` (migrations in `migrations/`, embedded in the binary).
+- `go run . routes`, `go run . resources`, `go run . openapi` print the live structure. Use them instead of guessing.
+- `go test ./...` must pass before you finish.
+- `go run . mcp` is an MCP server with tools: app_info, list_routes, list_resources, get_openapi,
+  list_migrations, migration_status, scaffold_resource (already configured in `.mcp.json`).
+
+## Adding a CRUD resource (preferred way)
+Run `mithril make:resource Post title:string:required body:text --owner` (or the `scaffold_resource`
+MCP tool). It writes `models/post.go`, a migration, and registers the resource in `resources.go`.
+Then run `go run . migrate up`. Field types: string text email url int float bool time uuid json.
+
+## Conventions
+- A resource struct uses `json` tags for the API, `db:"col"` to rename columns, `validate:"required,max=200,email"`,
+  and `mithril:"owner"` (rows belong to their creator), `mithril:"text"` (long text), `mithril:"readonly"`.
+  `id`, `created_at`, `updated_at` and the owner are server-managed and can never be set by clients.
+- Permissions are `<name>.view/add/change/delete` (+ `change_any`/`delete_any` with an owner). Never bypass them.
+- Custom endpoints go in `routes.go` as typed handlers (`api.Get(a.API, ...)`) so they are validated and documented.
+  `a.API` requires an access token; `a.Public` does not.
+- Never put secrets in code; configuration comes from the environment (`.env` for local development).
+- Return `api.Error` values (e.g. `api.ErrNotFound`, `api.BadRequest("...")`); other errors become a generic 500.

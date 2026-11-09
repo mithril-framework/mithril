@@ -1,259 +1,30 @@
-// Command createsuperuser interactively creates a superuser (Django-style).
+// Command createsuperuser creates a superuser for the reference app.
+// In Mithril projects use `go run . createsuperuser` instead.
 package main
 
 import (
-	"bufio"
 	"context"
-	"errors"
-	"flag"
-	"fmt"
 	"log"
 	"os"
-	"strings"
 
-	"github.com/mithril-framework/mithril/database/models"
-	"github.com/mithril-framework/mithril/database/repositories"
-	csu "github.com/mithril-framework/mithril/internal/createsuperuser"
-	"github.com/mithril-framework/mithril/internal/db"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/term"
+	"github.com/mithril-framework/mithril/config"
+	"github.com/mithril-framework/mithril/db"
+	"github.com/mithril-framework/mithril/users/createsuperuser"
 )
 
 func main() {
-	loadEnvFile(".env")
-
-	emailFlag := flag.String("email", "", "Superuser email (non-interactive)")
-	passwordFlag := flag.String("password", "", "Superuser password (non-interactive; min 8 chars)")
-	firstNameFlag := flag.String("first-name", "", "First name (optional)")
-	lastNameFlag := flag.String("last-name", "", "Last name (optional)")
-	flag.Parse()
-
-	ctx := context.Background()
-	if os.Getenv("DATABASE_URL") == "" && os.Getenv("DB_HOST") == "" {
+	_ = config.LoadDotEnv(".env")
+	dsn := config.DSNFromEnv()
+	if dsn == "" {
 		log.Fatal("Set DATABASE_URL or DB_HOST (and DB_USER, DB_PASSWORD, DB_NAME) in the environment or .env")
 	}
-	dsn := db.DSNFromEnv()
+	ctx := context.Background()
 	pool, err := db.New(ctx, dsn)
 	if err != nil {
 		log.Fatalf("db: %v", err)
 	}
 	defer pool.Close()
-
-	if err := requireACLSchema(ctx, pool); err != nil {
+	if err := createsuperuser.Run(ctx, pool, os.Args[1:]); err != nil {
 		log.Fatal(err)
-	}
-
-	repo := repositories.NewUserRepository(pool)
-
-	email := strings.TrimSpace(strings.ToLower(firstNonEmpty(*emailFlag, os.Getenv("CREATESUPERUSER_EMAIL"))))
-	password := firstNonEmpty(*passwordFlag, os.Getenv("CREATESUPERUSER_PASSWORD"))
-	if email != "" && password != "" {
-		if err := createSuperuser(ctx, repo, email, password, strings.TrimSpace(*firstNameFlag), strings.TrimSpace(*lastNameFlag)); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
-	if email != "" || password != "" {
-		log.Fatal("Non-interactive mode requires both --email and --password (or CREATESUPERUSER_EMAIL and CREATESUPERUSER_PASSWORD)")
-	}
-
-	sc := bufio.NewScanner(os.Stdin)
-
-	fmt.Println("Superuser creation (mithril)")
-	fmt.Println("Leave email empty to exit.")
-	fmt.Println("Non-interactive: mithril createsuperuser --email you@example.com --password 'your-password'")
-
-	for {
-		email := promptLine(sc, "Email address: ")
-		if email == "" {
-			fmt.Println("Cancelled.")
-			return
-		}
-		email = strings.TrimSpace(strings.ToLower(email))
-		if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-			fmt.Println("Error: Enter a valid email address.")
-			continue
-		}
-		_, err := repo.GetByEmail(ctx, email)
-		if err == nil {
-			fmt.Println("Error: A user with that email already exists.")
-			continue
-		}
-		if !errors.Is(err, pgx.ErrNoRows) {
-			log.Fatalf("database: %v", err)
-		}
-
-		password, ok := promptPasswordWithPolicy(sc)
-		if !ok {
-			continue
-		}
-
-		first := promptLine(sc, "First name: ")
-		last := promptLine(sc, "Last name: ")
-		first = strings.TrimSpace(first)
-		last = strings.TrimSpace(last)
-
-		if err := createSuperuser(ctx, repo, email, password, first, last); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return strings.TrimSpace(v)
-		}
-	}
-	return ""
-}
-
-func createSuperuser(ctx context.Context, repo *repositories.UserRepository, email, password, first, last string) error {
-	email = strings.TrimSpace(strings.ToLower(email))
-	if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
-		return fmt.Errorf("invalid email address: %s", email)
-	}
-	if len(password) < csu.MinPasswordLength {
-		return fmt.Errorf("password must be at least %d characters", csu.MinPasswordLength)
-	}
-	_, err := repo.GetByEmail(ctx, email)
-	if err == nil {
-		return fmt.Errorf("a user with email %s already exists", email)
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("database: %w", err)
-	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("bcrypt: %w", err)
-	}
-	u := &models.User{
-		Email:        email,
-		PasswordHash: string(hash),
-		FirstName:    first,
-		LastName:     last,
-		IsActive:     true,
-		IsSuperuser:  true,
-	}
-	if err := repo.Create(ctx, u); err != nil {
-		return fmt.Errorf("create user: %w", err)
-	}
-	fmt.Printf("\nSuperuser created successfully.\n  id: %s\n  email: %s\n", u.ID, u.Email)
-	return nil
-}
-
-func promptLine(sc *bufio.Scanner, label string) string {
-	fmt.Print(label)
-	if !sc.Scan() {
-		return ""
-	}
-	return sc.Text()
-}
-
-func readPassword(label string) (string, error) {
-	fmt.Print(label)
-	fd := int(os.Stdin.Fd())
-	pw, err := term.ReadPassword(fd)
-	fmt.Println()
-	if err != nil {
-		return "", err
-	}
-	return string(pw), nil
-}
-
-// promptPasswordWithPolicy asks twice for match, enforces min length, weak-password confirmation.
-func promptPasswordWithPolicy(sc *bufio.Scanner) (string, bool) {
-	for {
-		pw1, err := readPassword("Password: ")
-		if err != nil {
-			log.Fatalf("read password: %v", err)
-		}
-		pw2, err := readPassword("Password (again): ")
-		if err != nil {
-			log.Fatalf("read password: %v", err)
-		}
-		if pw1 != pw2 {
-			fmt.Println("Error: Passwords do not match. Try again.")
-			continue
-		}
-		if len(pw1) < csu.MinPasswordLength {
-			fmt.Printf("Error: Password must be at least %d characters. Try again.\n\n", csu.MinPasswordLength)
-			continue
-		}
-		if issues := csu.PasswordIssues(pw1); len(issues) > 0 {
-			fmt.Println("\nThis password does not meet the recommended complexity:")
-			for _, line := range issues {
-				fmt.Println("  -", line)
-			}
-			fmt.Print("\nUse this password anyway? Type 'yes' to confirm, or press Enter to choose another: ")
-			if !sc.Scan() {
-				return "", false
-			}
-			if strings.TrimSpace(strings.ToLower(sc.Text())) != "yes" {
-				fmt.Println("Choose a new password.")
-				continue
-			}
-		}
-		return pw1, true
-	}
-}
-
-func requireACLSchema(ctx context.Context, pool *pgxpool.Pool) error {
-	var ok bool
-	// Use pg_catalog + pg_table_is_visible so we detect the same `users` row type this session would use in SQL.
-	// information_schema + broad schema filters can miss or mismatch search_path vs goose (public).
-	err := pool.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1
-			FROM pg_catalog.pg_attribute a
-			INNER JOIN pg_catalog.pg_class c ON c.oid = a.attrelid
-			WHERE pg_catalog.pg_table_is_visible(c.oid)
-			  AND c.relkind IN ('r', 'p')
-			  AND c.relname = 'users'
-			  AND a.attname = 'is_superuser'
-			  AND a.attnum > 0
-			  AND NOT a.attisdropped
-		)
-	`).Scan(&ok)
-	if err != nil {
-		return fmt.Errorf("database schema check: %w", err)
-	}
-	if !ok {
-		var dbName, searchPath string
-		_ = pool.QueryRow(ctx, `SELECT current_database(), current_setting('search_path')`).Scan(&dbName, &searchPath)
-		return fmt.Errorf("connected database %q (search_path=%q) has no visible table users with column is_superuser.\n"+
-			"If goose shows migrations applied, confirm DATABASE_URL / DB_* matches the DB you migrated (make migrate-status).\n"+
-			"Otherwise run: make migrate-up", dbName, searchPath)
-	}
-	return nil
-}
-
-func loadEnvFile(filename string) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		idx := strings.Index(line, "=")
-		if idx <= 0 {
-			continue
-		}
-		key := strings.TrimSpace(line[:idx])
-		if key == "" || os.Getenv(key) != "" {
-			continue
-		}
-		value := strings.TrimSpace(line[idx+1:])
-		value = strings.Trim(value, `"`)
-		os.Setenv(key, value)
 	}
 }
