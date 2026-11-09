@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config is the full framework configuration. Field comments document the environment variable.
@@ -37,6 +38,22 @@ type Config struct {
 	EnableDocs        bool // ENABLE_DOCS: Swagger UI at /docs (default: on outside production)
 
 	Timezone string // APP_TIMEZONE or TZ (default UTC)
+
+	// Performance and operations. Defaults are tuned for production; see docs "Performance".
+	LogRequests  string        // LOG_REQUESTS: errors (default: status >= 400 only) | all | none
+	TrustProxy   bool          // TRUST_PROXY (default true): read the client IP from ProxyHeader, only when the peer is loopback/private
+	ProxyHeader  string        // PROXY_HEADER (default X-Real-IP)
+	PprofAddr    string        // PPROF_ADDR: private pprof listener, e.g. 127.0.0.1:6060 (off when empty)
+	DBMaxConns   int32         // DB_MAX_CONNS (default: 4 per CPU, 10–50)
+	DBMinConns   int32         // DB_MIN_CONNS (default 2)
+	ReadTimeout  time.Duration // READ_TIMEOUT (default 30s)
+	WriteTimeout time.Duration // WRITE_TIMEOUT (default 30s)
+	IdleTimeout  time.Duration // IDLE_TIMEOUT keep-alive (default 120s)
+	BodyLimit    int           // BODY_LIMIT bytes (default 4 MiB)
+	Prefork      bool          // PREFORK: one process per CPU (Linux, stateless apps only; default false)
+	// HighThroughput (HIGH_THROUGHPUT) drops the Date and default Content-Type headers for
+	// stateless hot services doing very high request rates. Off by default.
+	HighThroughput bool
 }
 
 // IsDevelopment reports whether APP_ENV explicitly names a non-production environment.
@@ -69,6 +86,23 @@ func FromEnv() (Config, error) {
 		EnableMonitor:     envBool("ENABLE_MONITOR", false),
 		EnableDocs:        envBool("ENABLE_DOCS", isDevelopmentEnv(env)),
 		Timezone:          firstNonEmpty(os.Getenv("APP_TIMEZONE"), os.Getenv("TZ"), "UTC"),
+		LogRequests:       strings.ToLower(envOr("LOG_REQUESTS", "errors")),
+		TrustProxy:        envBool("TRUST_PROXY", true),
+		ProxyHeader:       envOr("PROXY_HEADER", "X-Real-IP"),
+		PprofAddr:         strings.TrimSpace(os.Getenv("PPROF_ADDR")),
+		DBMaxConns:        int32(envInt("DB_MAX_CONNS", 0)),
+		DBMinConns:        int32(envInt("DB_MIN_CONNS", 0)),
+		ReadTimeout:       envDuration("READ_TIMEOUT", 30*time.Second),
+		WriteTimeout:      envDuration("WRITE_TIMEOUT", 30*time.Second),
+		IdleTimeout:       envDuration("IDLE_TIMEOUT", 120*time.Second),
+		BodyLimit:         envInt("BODY_LIMIT", 4<<20),
+		Prefork:           envBool("PREFORK", false),
+		HighThroughput:    envBool("HIGH_THROUGHPUT", false),
+	}
+	switch c.LogRequests {
+	case "errors", "all", "none":
+	default:
+		return Config{}, fmt.Errorf("LOG_REQUESTS must be errors, all or none (got %q)", c.LogRequests)
 	}
 	secret, err := ResolveJWTSecret(os.Getenv("JWT_SECRET"), env)
 	if err != nil {
@@ -226,6 +260,36 @@ func envBool(key string, def bool) bool {
 		return true
 	}
 	return false
+}
+
+func envInt(key string, def int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		log.Printf("warning: ignoring invalid %s=%q", key, v)
+		return def
+	}
+	return n
+}
+
+// envDuration accepts Go durations ("30s", "2m") or plain seconds ("30"); "0" disables.
+func envDuration(key string, def time.Duration) time.Duration {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+		return time.Duration(n) * time.Second
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		log.Printf("warning: ignoring invalid %s=%q", key, v)
+		return def
+	}
+	return d
 }
 
 func splitList(s string) []string {

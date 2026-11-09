@@ -20,7 +20,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
+	"net/http/pprof"
+	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -209,29 +213,57 @@ func New(opts ...Option) (*App, error) {
 }
 
 func (a *App) newFiber() *fiber.App {
+	cfg := a.Config
 	fc := fiber.Config{
-		AppName:     a.Config.AppName,
-		JSONEncoder: sonic.Marshal,
+		AppName:     cfg.AppName,
+		JSONEncoder: sonic.Marshal, // ~2-3x faster than encoding/json on typical payloads
 		JSONDecoder: sonic.Unmarshal,
 		ErrorHandler: func(c fiber.Ctx, err error) error {
 			return api.WriteError(c, err) // never leaks internal error text
 		},
+		BodyLimit:    cfg.BodyLimit,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
+		// HighThroughput: skip per-response Date and default Content-Type headers. Saves well under a
+		// microsecond per request, so only worth it for stateless hot services.
+		DisableDefaultDate:        cfg.HighThroughput,
+		DisableDefaultContentType: cfg.HighThroughput,
+	}
+	if cfg.TrustProxy {
+		// Behind nginx/a load balancer, c.IP() would otherwise be the proxy for every user, so per-IP
+		// rate limits and logs would lump everyone together. The header is only honoured when the
+		// direct peer is loopback or a private address, so a client exposed to the internet cannot
+		// spoof it; a missing or invalid header falls back to the connection's address.
+		fc.ProxyHeader = cfg.ProxyHeader
+		fc.TrustProxy = true
+		fc.TrustProxyConfig = fiber.TrustProxyConfig{Loopback: true, Private: true}
+		fc.EnableIPValidation = true
 	}
 	if a.opts.views != nil {
 		engine := jet.NewFileSystem(http.FS(a.opts.views), a.opts.viewsExt)
-		engine.Reload(a.Config.IsDevelopment())
+		engine.Reload(cfg.IsDevelopment())
 		fc.Views = engine
 	}
 	f := fiber.New(fc)
 	f.Use(requestid.New())
 	f.Use(recover.New())
-	f.Use(logger.New(logger.Config{Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency}\n"}))
-	f.Use(cors.New(cors.Config{AllowOrigins: a.Config.CORSOrigins}))
-	if a.Config.EnableHelmet {
+	if mode := cfg.LogRequests; mode != "none" {
+		// One log line per request costs ~6% CPU under load; by default only errors are logged.
+		logAll := mode == "all"
+		f.Use(logger.New(logger.Config{
+			Format: "[${time}] ${status} - ${method} ${path} (${ip}) ${latency} ${locals:requestid}\n",
+			Skip:   func(c fiber.Ctx) bool { return !logAll && c.Response().StatusCode() < 400 },
+		}))
+	}
+	f.Use(cors.New(cors.Config{AllowOrigins: cfg.CORSOrigins}))
+	if cfg.EnableHelmet {
 		f.Use(helmet.New(helmet.Config{CrossOriginEmbedderPolicy: "unsafe-none"})) // Swagger UI loads from a CDN
 	}
-	if a.Config.EnableCompression {
-		f.Use(compress.New(compress.Config{Level: compress.LevelDefault}))
+	if cfg.EnableCompression {
+		// The default level spent ~18% CPU on small JSON for little size gain; best speed keeps most
+		// of the saving. Put compression in nginx instead if you have one in front.
+		f.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 	}
 	for _, m := range a.opts.middleware {
 		f.Use(m)
@@ -380,7 +412,7 @@ func (a *App) Connect(ctx context.Context) error {
 	if a.DB() != nil {
 		return nil
 	}
-	pool, err := db.New(ctx, a.Config.DatabaseURL)
+	pool, err := db.NewWithOptions(ctx, a.Config.DatabaseURL, a.poolOptions())
 	if err != nil {
 		return err
 	}
@@ -467,14 +499,87 @@ func (a *App) afterConnect(ctx context.Context) {
 
 // Serve connects the database and listens on Config.Addr() until the process stops.
 func (a *App) Serve(ctx context.Context) error {
+	if a.Config.Prefork {
+		if runtime.GOOS != "linux" {
+			log.Println("warning: PREFORK only spreads connections across processes on Linux (SO_REUSEPORT)")
+		}
+		if !fiber.IsChild() {
+			log.Println("warning: PREFORK runs one process per CPU; anything kept in memory (rate limits, caches, hubs) is per process")
+		}
+	}
 	if a.Config.HasDatabase() && !a.opts.noDB {
 		if err := a.connectWithRetry(ctx); err != nil {
 			return err
 		}
 	}
 	defer a.Close()
-	log.Printf("%s listening on %s", a.Config.AppName, a.Config.Addr())
-	return a.Fiber.Listen(a.Config.Addr(), fiber.ListenConfig{DisableStartupMessage: true})
+	if err := a.startPprof(); err != nil {
+		return err
+	}
+	if !fiber.IsChild() {
+		log.Printf("%s listening on %s (prefork=%v, pool max=%d)", a.Config.AppName, a.Config.Addr(), a.Config.Prefork, a.poolOptions().MaxConns)
+	}
+	err := a.Fiber.Listen(a.Config.Addr(), fiber.ListenConfig{
+		DisableStartupMessage: true,
+		EnablePrefork:         a.Config.Prefork,
+		// SIGINT/SIGTERM cancel ctx (app.Main): stop accepting connections, let in-flight requests
+		// finish for up to 10 s, then return. Without this, orchestrators wait for their grace
+		// period and SIGKILL the process mid-request on every deploy.
+		GracefulContext: ctx,
+		ShutdownTimeout: 10 * time.Second,
+	})
+	if err == nil && ctx.Err() != nil && !fiber.IsChild() {
+		log.Println("shut down gracefully")
+	}
+	return err
+}
+
+// poolOptions sizes the DB pool. With PREFORK every process has its own pool, so the default is
+// divided across CPUs to keep the total under PostgreSQL's connection limit.
+func (a *App) poolOptions() db.Options {
+	o := db.Options{MaxConns: a.Config.DBMaxConns, MinConns: a.Config.DBMinConns}
+	if o.MaxConns == 0 {
+		o.MaxConns = db.DefaultMaxConns()
+		if a.Config.Prefork {
+			o.MaxConns = 4
+			o.MinConns = 1
+		}
+	}
+	return o
+}
+
+// startPprof serves net/http/pprof on Config.PprofAddr. It refuses non-loopback addresses unless
+// PPROF_ALLOW_REMOTE=true (e.g. inside a container whose port is published on 127.0.0.1 only):
+// profiles expose memory contents and must never be reachable from the internet.
+func (a *App) startPprof() error {
+	addr := a.Config.PprofAddr
+	if addr == "" || fiber.IsChild() {
+		return nil
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("PPROF_ADDR %q: %w", addr, err)
+	}
+	ip := net.ParseIP(host)
+	loopback := host == "localhost" || (ip != nil && ip.IsLoopback())
+	if !loopback && os.Getenv("PPROF_ALLOW_REMOTE") != "true" {
+		return fmt.Errorf("PPROF_ADDR %q is not a loopback address; use 127.0.0.1:6060 (or set PPROF_ALLOW_REMOTE=true inside a container)", addr)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
+	go func() {
+		log.Printf("pprof listening on http://%s/debug/pprof/", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("pprof: %v", err)
+		}
+	}()
+	go func() { <-a.stop; _ = srv.Close() }()
+	return nil
 }
 
 // Close stops background work and closes the database pool.

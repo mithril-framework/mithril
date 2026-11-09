@@ -11,8 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const localEffectivePermsKey = "acl_effective_perm_set"
-
 // Service resolves permissions and ownership checks.
 type Service struct {
 	repo *repositories.ACLRepository
@@ -26,22 +24,28 @@ func NewService(r *repositories.ACLRepository) *Service {
 	return &Service{repo: r}
 }
 
-func (s *Service) cachedEffectivePerms(ctx context.Context, c fiber.Ctx, userID uuid.UUID) (map[string]struct{}, error) {
+const localPrincipalKey = "acl_principal"
+
+// principal returns the caller's flags and permissions, loaded once per request (one query) and
+// cached in Locals. Inactive or deleted users get no permissions and are never superusers, so a
+// still-valid token for a disabled account is denied on every DB-checked path.
+func (s *Service) principal(ctx context.Context, c fiber.Ctx, userID uuid.UUID) (*repositories.Principal, error) {
 	if c != nil {
-		if v := c.Locals(localEffectivePermsKey); v != nil {
-			if m, ok := v.(map[string]struct{}); ok {
-				return m, nil
-			}
+		if p, ok := c.Locals(localPrincipalKey).(*repositories.Principal); ok && p != nil {
+			return p, nil
 		}
 	}
-	perms, err := s.repo.UserEffectivePermissionCodenames(ctx, userID)
+	p, err := s.repo.UserPrincipal(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	if c != nil {
-		c.Locals(localEffectivePermsKey, perms)
+	if !p.Exists || !p.IsActive {
+		p = &repositories.Principal{Exists: p.Exists, Permissions: map[string]struct{}{}}
 	}
-	return perms, nil
+	if c != nil {
+		c.Locals(localPrincipalKey, p)
+	}
+	return p, nil
 }
 
 // HasPermission returns true if the user has the codename (roles + direct) or is superuser.
@@ -53,43 +57,29 @@ func (s *Service) HasPermission(ctx context.Context, c fiber.Ctx, userID uuid.UU
 	if jwtIsSuperuser {
 		return true, nil
 	}
-	sup, err := s.repo.UserIsSuperuser(ctx, userID)
+	p, err := s.principal(ctx, c, userID)
 	if err != nil {
 		return false, err
 	}
-	if sup {
+	if p.IsSuperuser {
 		return true, nil
 	}
-	perms, err := s.cachedEffectivePerms(ctx, c, userID)
-	if err != nil {
-		return false, err
-	}
-	_, ok := perms[codename]
+	_, ok := p.Permissions[codename]
 	return ok, nil
 }
 
-const localDBSuperuserKey = "acl_db_is_superuser"
-
 // IsSuperuserDB reports whether the user is a superuser according to the database (not the JWT).
 // Use it for privilege-changing decisions: the JWT flag can be stale for the token lifetime after a
-// demotion. The result is cached in Locals for the request when c is non-nil.
+// demotion. Shares the per-request principal cache with HasPermission.
 func (s *Service) IsSuperuserDB(ctx context.Context, c fiber.Ctx, userID uuid.UUID) (bool, error) {
 	if s == nil || s.repo == nil {
 		return false, nil
 	}
-	if c != nil {
-		if v, ok := c.Locals(localDBSuperuserKey).(bool); ok {
-			return v, nil
-		}
-	}
-	sup, err := s.repo.UserIsSuperuser(ctx, userID)
+	p, err := s.principal(ctx, c, userID)
 	if err != nil {
 		return false, err
 	}
-	if c != nil {
-		c.Locals(localDBSuperuserKey, sup)
-	}
-	return sup, nil
+	return p.IsSuperuser, nil
 }
 
 // HasRole returns true if the user has the named role.
@@ -108,7 +98,7 @@ func (s *Service) CanAccessOwnedResource(ctx context.Context, c fiber.Ctx, curre
 	if jwtIsSuperuser {
 		return true, nil
 	}
-	sup, err := s.repo.UserIsSuperuser(ctx, currentUserID)
+	sup, err := s.IsSuperuserDB(ctx, c, currentUserID)
 	if err != nil {
 		return false, err
 	}

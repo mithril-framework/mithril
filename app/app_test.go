@@ -2,8 +2,11 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
+	"net"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -203,4 +206,84 @@ func TestWithMiddlewareRunsForAllRoutes(t *testing.T) {
 			t.Errorf("%s: middleware did not run", p)
 		}
 	}
+}
+
+func TestServeStopsOnContextCancel(t *testing.T) {
+	a, err := New(WithEnvFile(""), WithoutDatabase(), WithConfig(config.Config{AppName: "t", Env: "test", JWTSecret: secret, Port: "48931"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- a.Serve(ctx) }()
+	time.Sleep(300 * time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Serve returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after the context was cancelled (SIGTERM would be ignored)")
+	}
+}
+
+func TestClientIPBehindTrustedProxy(t *testing.T) {
+	cfg := config.Config{AppName: "t", Env: "test", JWTSecret: secret, TrustProxy: true, ProxyHeader: "X-Real-IP"}
+	a, err := New(WithEnvFile(""), WithoutDatabase(), WithConfig(cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Fiber.Get("/ip", func(c fiber.Ctx) error { return c.SendString(c.IP()) })
+	ln, err := net.Listen("tcp4", "127.0.0.1:0") // a real loopback peer, like nginx on the same host
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = a.Fiber.Listener(ln, fiber.ListenConfig{DisableStartupMessage: true}) }()
+	defer func() { _ = a.Fiber.Shutdown() }()
+	ip := func(header string) string {
+		req, _ := http.NewRequest("GET", "http://"+ln.Addr().String()+"/ip", nil)
+		if header != "" {
+			req.Header.Set("X-Real-IP", header)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return string(b)
+	}
+	if got := ip("203.0.113.7"); got != "203.0.113.7" {
+		t.Fatalf("header from a trusted (loopback) proxy ignored: %q", got)
+	}
+	if got := ip("not-an-ip"); got != "127.0.0.1" {
+		t.Fatalf("invalid header must fall back to the peer address, got %q", got)
+	}
+	if got := ip(""); got != "127.0.0.1" {
+		t.Fatalf("missing header must fall back to the peer address, got %q", got)
+	}
+
+	// Not behind a trusted proxy: app.Test's peer (0.0.0.0) is not loopback/private, so the header is ignored.
+	req := httptest.NewRequest("GET", "/ip", nil)
+	req.Header.Set("X-Real-IP", "203.0.113.7")
+	resp, _ := a.Fiber.Test(req)
+	b, _ := io.ReadAll(resp.Body)
+	if string(b) == "203.0.113.7" {
+		t.Fatal("X-Real-IP from an untrusted peer must not be honoured (IP spoofing)")
+	}
+}
+
+func TestPprofRefusesPublicAddress(t *testing.T) {
+	a := newTestApp(t)
+	a.Config.PprofAddr = "0.0.0.0:6061"
+	t.Setenv("PPROF_ALLOW_REMOTE", "")
+	if err := a.startPprof(); err == nil {
+		t.Fatal("pprof must not listen on a non-loopback address by default")
+	}
+	a.Config.PprofAddr = "127.0.0.1:0"
+	if err := a.startPprof(); err != nil {
+		t.Fatalf("loopback pprof refused: %v", err)
+	}
+	a.Close()
 }

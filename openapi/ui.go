@@ -9,7 +9,7 @@ import (
 // JSONHandler serves the document as application/json.
 func (d *Document) JSONHandler() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		b, err := d.MarshalJSON()
+		b, err := d.render()
 		if err != nil {
 			return err
 		}
@@ -31,4 +31,25 @@ func UIHandler(title, specURL string) fiber.Handler {
 		c.Set(fiber.HeaderContentType, fiber.MIMETextHTMLCharsetUTF8)
 		return c.SendString(page)
 	}
+}
+
+// render returns the cached JSON, rendering it once after the last change. A render that races
+// with a mutation is not cached (the version check), so stale bytes are never stored.
+func (d *Document) render() ([]byte, error) {
+	d.mu.RLock()
+	b, v := d.cached, d.version
+	d.mu.RUnlock()
+	if b != nil {
+		return b, nil
+	}
+	b, err := d.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	d.mu.Lock()
+	if d.version == v {
+		d.cached = b
+	}
+	d.mu.Unlock()
+	return b, nil
 }

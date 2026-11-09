@@ -155,3 +155,26 @@ Bugs found and fixed while building: the typed-handler middleware order (middlew
 Verification: unit tests in every new package; 46 end-to-end HTTP checks against PostgreSQL 16 (auth, token types, ownership rules, mass assignment, validation, admin restrictions, embedded assets); `mithril new` → `make:resource` → `go test` → `migrate up` on a generated project; MCP stdio handshake and all 7 tools; upgrade of a database built by the old 0001–0007 migrations.
 
 Still open: S7, S9, S12–S18, S21, plus the docs suggestions not yet built (DI container, sessions, testing helpers, observability).
+
+---
+
+## Fix log, round 3: performance defaults (v1.3, branch `perf/fast-defaults`)
+
+Applied the `mithril-performance` playbook: measure first, fix the top item, re-measure with the same load.
+
+| Route (oha, keep-alive, c=64, macOS loopback) | v1.2 | v1.3 |
+|---|---|---|
+| `GET /` | 57,043 req/s · p99 4.93 ms | 81,220 req/s · p99 0.98 ms |
+| `GET /api/blogs` (list, non-superuser) | 4,237 · p50 14.7 ms | 14,022 · p50 4.2 ms (3.3×) |
+| `GET /api/blogs/:id` | 5,881 · p50 10.6 ms | 17,142 · p50 3.5 ms (2.9×) |
+
+What changed:
+- **Per-request queries:** list 4 → 2, get 3 → 2, patch 5 → 3. The superuser flag and permission set now load in one query cached per request, and lists use `count(*) OVER()`.
+- **Pool:** sized 4 per CPU (10–50) instead of a fixed 10.
+- **Defaults:** errors-only request logs, best-speed compression, trusted-proxy client IPs, timeouts, a cached `/openapi.json`, opt-in pprof (loopback only), and opt-in Prefork and high-throughput mode.
+
+Found while benchmarking:
+- **New bug, fixed:** SIGTERM was ignored. `app.Main` caught the signal but `Serve` never stopped, so every container deploy ended in a SIGKILL that dropped in-flight requests. It now shuts down gracefully (10 s).
+- **S7 (partly):** DB-checked permission paths now deny deactivated or deleted users even when their token is still valid.
+
+Verified with unit and race tests, the security e2e suite (52/52), a generated project (77k req/s on `/hello`, p99 1.0 ms, profile mostly syscalls), and `nginx -t` on the generated nginx config.

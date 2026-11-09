@@ -51,7 +51,7 @@ func TestRenderTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, f := range []string{"go.mod", "main.go", "resources.go", "routes.go", "main_test.go", "models/doc.go",
-		"migrations/README.md", "env.example", ".gitignore", ".mcp.json", "AGENTS.md", "Dockerfile", "docker-compose.yml", "Makefile", "README.md"} {
+		"migrations/README.md", "env.example", ".gitignore", ".mcp.json", "AGENTS.md", "Dockerfile", "docker-compose.yml", "Makefile", "README.md", "deploy/nginx.conf.example"} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			t.Errorf("missing %s", f)
 		}
@@ -70,7 +70,7 @@ func TestRenderTemplate(t *testing.T) {
 }
 
 func TestVersionConstant(t *testing.T) {
-	if version.Version != "1.2.0" {
-		t.Fatalf("expected 1.2.0, got %q", version.Version)
+	if version.Version != "1.3.0" {
+		t.Fatalf("expected 1.3.0, got %q", version.Version)
 	}
 }

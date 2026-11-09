@@ -24,3 +24,13 @@ Then run `go run . migrate up`. Field types: string text email url int float boo
   `a.API` requires an access token; `a.Public` does not.
 - Never put secrets in code; configuration comes from the environment (`.env` for local development).
 - Return `api.Error` values (e.g. `api.ErrNotFound`, `api.BadRequest("...")`); other errors become a generic 500.
+
+## Performance
+- Framework defaults are production-tuned (sonic JSON, errors-only request logs, one ACL query per request,
+  a DB pool sized to the CPUs, timeouts, graceful shutdown). Don't undo them without a measurement.
+- Measure before optimizing: `PPROF_ADDR=127.0.0.1:6060 go run .`, load with `make bench` (keep-alive),
+  then `make profile`. Fix the top item in the profile and re-measure with the same load.
+- Keep DB round trips per request low: no query per row (N+1); load related data in one query.
+- Never enable `PREFORK` if anything lives in memory (caches, rate limits, rooms, WebSocket hubs).
+- macOS loopback caps benchmarks far below the server's limit: run the load client next to the server
+  in the same Linux VM or Docker network before drawing conclusions.

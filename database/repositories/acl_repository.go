@@ -8,6 +8,7 @@ import (
 	"github.com/mithril-framework/mithril/database/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -331,4 +332,47 @@ func (r *ACLRepository) UserHasRoleName(ctx context.Context, userID uuid.UUID, r
 func (r *ACLRepository) EnsurePermission(ctx context.Context, codename, description string) error {
 	_, err := r.db.Exec(ctx, `INSERT INTO permissions (codename, description) VALUES ($1, $2) ON CONFLICT (codename) DO NOTHING`, codename, description)
 	return err
+}
+
+// Principal is everything permission checks need about a user, loaded in one round trip.
+type Principal struct {
+	Exists      bool
+	IsActive    bool
+	IsSuperuser bool
+	Permissions map[string]struct{} // effective codenames (roles + direct)
+}
+
+// UserPrincipal loads the superuser/active flags and effective permission codenames in a single
+// query. A missing user yields Exists=false and no error.
+func (r *ACLRepository) UserPrincipal(ctx context.Context, userID uuid.UUID) (*Principal, error) {
+	var (
+		active, super bool
+		codes         []string
+	)
+	err := r.db.QueryRow(ctx, `
+		SELECT u.is_active, u.is_superuser,
+		       COALESCE(array_agg(DISTINCT p.codename) FILTER (WHERE p.codename IS NOT NULL), '{}')
+		FROM users u
+		LEFT JOIN LATERAL (
+			SELECT up.permission_id FROM user_permissions up WHERE up.user_id = u.id
+			UNION
+			SELECT rp.permission_id FROM user_roles ur
+			JOIN role_permissions rp ON rp.role_id = ur.role_id
+			WHERE ur.user_id = u.id
+		) x ON true
+		LEFT JOIN permissions p ON p.id = x.permission_id
+		WHERE u.id = $1
+		GROUP BY u.is_active, u.is_superuser
+	`, userID).Scan(&active, &super, &codes)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &Principal{Permissions: map[string]struct{}{}}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	perms := make(map[string]struct{}, len(codes))
+	for _, c := range codes {
+		perms[c] = struct{}{}
+	}
+	return &Principal{Exists: true, IsActive: active, IsSuperuser: super, Permissions: perms}, nil
 }

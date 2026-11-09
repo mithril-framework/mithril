@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestResolveJWTSecret(t *testing.T) {
@@ -86,5 +87,35 @@ func TestLoadDotEnv(t *testing.T) {
 func TestUnsetAppEnvIsProduction(t *testing.T) {
 	if (Config{}).IsDevelopment() {
 		t.Fatal("unset APP_ENV must not be development")
+	}
+}
+
+func TestPerformanceDefaults(t *testing.T) {
+	for _, k := range []string{"LOG_REQUESTS", "TRUST_PROXY", "PROXY_HEADER", "PPROF_ADDR", "DB_MAX_CONNS", "READ_TIMEOUT", "BODY_LIMIT", "PREFORK", "HIGH_THROUGHPUT"} {
+		t.Setenv(k, "")
+	}
+	t.Setenv("APP_ENV", "development")
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.LogRequests != "errors" || !c.TrustProxy || c.ProxyHeader != "X-Real-IP" || c.PprofAddr != "" ||
+		c.ReadTimeout != 30*time.Second || c.IdleTimeout != 120*time.Second || c.BodyLimit != 4<<20 || c.Prefork || c.HighThroughput {
+		t.Fatalf("unexpected defaults: %+v", c)
+	}
+	t.Setenv("READ_TIMEOUT", "5")
+	t.Setenv("WRITE_TIMEOUT", "1m")
+	t.Setenv("DB_MAX_CONNS", "24")
+	t.Setenv("LOG_REQUESTS", "ALL")
+	c, err = FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ReadTimeout != 5*time.Second || c.WriteTimeout != time.Minute || c.DBMaxConns != 24 || c.LogRequests != "all" {
+		t.Fatalf("overrides not applied: %+v", c)
+	}
+	t.Setenv("LOG_REQUESTS", "verbose")
+	if _, err := FromEnv(); err == nil {
+		t.Fatal("invalid LOG_REQUESTS accepted")
 	}
 }

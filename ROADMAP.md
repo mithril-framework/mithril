@@ -23,6 +23,16 @@ This document tracks planned features and milestones. Items marked **Done** ship
 - [ ] Resource hooks (before/after save), filters, search and relationship preloading
 - [ ] `mithriltest` helpers (transactional DB, `ActingAs(user)`)
 
+## Performance (v1.3, beta)
+
+- [x] Errors-only request logging, best-speed compression, sonic JSON
+- [x] One query for all permission checks per request; single-round-trip resource lists
+- [x] DB pool sized to the CPUs; read/write/idle timeouts; graceful shutdown on SIGTERM
+- [x] Trusted-proxy client IPs; private pprof listener; `make bench` / `make profile` in new projects
+- [x] Opt-in Prefork and high-throughput header mode for stateless services
+- [ ] Optional short-TTL permission cache across requests
+- [ ] WebSocket hub with a single writer per connection (with the WebSocket feature)
+
 ## Phase 3 — Security & Middleware
 
 - [ ] Server-side sessions with refresh-token rotation and revocation

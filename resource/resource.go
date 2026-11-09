@@ -250,19 +250,6 @@ func (r *R[T]) scanTargets(v *T) []any {
 	return dest
 }
 
-func (r *R[T]) collect(rows pgx.Rows) ([]T, error) {
-	defer rows.Close()
-	out := []T{}
-	for rows.Next() {
-		var v T
-		if err := rows.Scan(r.scanTargets(&v)...); err != nil {
-			return nil, err
-		}
-		out = append(out, v)
-	}
-	return out, rows.Err()
-}
-
 // Page is a paginated list response.
 type Page[T any] struct {
 	Items  []T   `json:"items"`
@@ -277,19 +264,31 @@ func (r *R[T]) list(ctx context.Context, db *pgxpool.Pool, owner *uuid.UUID, lim
 		where = " WHERE " + r.owner.quoted() + " = $1"
 		args = append(args, *owner)
 	}
-	var total int64
-	if err := db.QueryRow(ctx, "SELECT count(*) FROM "+r.table()+where, args...).Scan(&total); err != nil {
-		return nil, err
-	}
-	q := fmt.Sprintf("SELECT %s FROM %s%s ORDER BY %s DESC, %s DESC LIMIT $%d OFFSET $%d",
+	// One round trip: the window count gives the total alongside the page.
+	q := fmt.Sprintf("SELECT %s, count(*) OVER() FROM %s%s ORDER BY %s DESC, %s DESC LIMIT $%d OFFSET $%d",
 		r.columns(), r.table(), where, r.orderBy.quoted(), r.pk.quoted(), len(args)+1, len(args)+2)
 	rows, err := db.Query(ctx, q, append(args, limit, offset)...)
 	if err != nil {
 		return nil, err
 	}
-	items, err := r.collect(rows)
-	if err != nil {
+	defer rows.Close()
+	items := []T{}
+	var total int64
+	for rows.Next() {
+		var v T
+		if err := rows.Scan(append(r.scanTargets(&v), &total)...); err != nil {
+			return nil, err
+		}
+		items = append(items, v)
+	}
+	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	// An empty page past the end has no rows to carry the count: ask for it explicitly.
+	if len(items) == 0 && offset > 0 {
+		if err := db.QueryRow(ctx, "SELECT count(*) FROM "+r.table()+where, args...).Scan(&total); err != nil {
+			return nil, err
+		}
 	}
 	return &Page[T]{Items: items, Total: total, Limit: limit, Offset: offset}, nil
 }

@@ -17,3 +17,9 @@ go run . migrate up
 ```
 
 Build a single self-contained binary with `make build`, or a container with `docker build .`.
+
+## Production & performance
+
+- Put nginx in front with `deploy/nginx.conf.example`: real client IPs, upstream keep-alive and raised connection limits.
+- The defaults are tuned for throughput; `env.example` → *Performance* lists the knobs.
+- Load test with `make bench`; profile with `PPROF_ADDR=127.0.0.1:6060 go run .` and `make profile`.

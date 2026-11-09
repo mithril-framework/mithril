@@ -1,4 +1,4 @@
-.PHONY: run test build migrate db routes openapi
+.PHONY: run test build migrate db routes openapi bench profile
 
 run:      ## Start the server
 	go run .
@@ -14,3 +14,7 @@ routes:   ## List routes
 	go run . routes
 openapi:  ## Write openapi.json
 	go run . openapi -o openapi.json
+bench:    ## Keep-alive load test (needs oha). make bench URL=http://127.0.0.1:4000/hello C=64 D=15s
+	oha -z $(or $(D),15s) -c $(or $(C),64) --no-tui $(or $(URL),http://127.0.0.1:4000/hello)
+profile:  ## 30 s CPU profile of a server started with PPROF_ADDR=127.0.0.1:6060 (run during a load test)
+	curl -s -o cpu.pprof "http://127.0.0.1:6060/debug/pprof/profile?seconds=30" && go tool pprof -top -nodecount=30 cpu.pprof

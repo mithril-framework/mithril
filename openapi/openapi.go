@@ -81,6 +81,8 @@ type Operation struct {
 // Document is an OpenAPI 3.1 document. Safe for concurrent use.
 type Document struct {
 	mu         sync.RWMutex
+	cached     []byte                          // rendered JSON; reset by every mutation
+	version    uint64                          // incremented by every mutation
 	OpenAPI    string                          `json:"openapi"`
 	Info       Info                            `json:"info"`
 	Paths      map[string]map[string]Operation `json:"paths"`
@@ -142,6 +144,8 @@ func (d *Document) AddOperation(method, path string, op Operation) {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.cached = nil
+	d.version++
 	p := PathFromFiber(path)
 	if d.Paths[p] == nil {
 		d.Paths[p] = map[string]Operation{}
@@ -193,6 +197,8 @@ func (d *Document) SchemaRef(v any) *Schema {
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.cached = nil
+	d.version++
 	return d.schemaFor(reflect.TypeOf(v), map[reflect.Type]bool{})
 }
 
@@ -200,6 +206,8 @@ func (d *Document) SchemaRef(v any) *Schema {
 func (d *Document) SchemaForType(t reflect.Type) *Schema {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.cached = nil
+	d.version++
 	return d.schemaFor(t, map[reflect.Type]bool{})
 }
 
@@ -399,6 +407,8 @@ func ParseRules(tag string) map[string]string {
 func (d *Document) SetComponent(name string, s *Schema) *Schema {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.cached = nil
+	d.version++
 	d.Components.Schemas[name] = s
 	return &Schema{Ref: "#/components/schemas/" + name}
 }

@@ -1,0 +1,39 @@
+# nginx in front of {{.Name}}: a single hop from nginx straight to the app.
+# Publish the app on loopback only (docker: "127.0.0.1:4000:4000") so only nginx can reach it.
+#
+# In /etc/nginx/nginx.conf, raise the connection limits. The Ubuntu default of
+# worker_connections 768 caps you at a few hundred concurrent clients:
+#
+#   worker_rlimit_nofile 32768;            # after worker_processes
+#   events { worker_connections 8192; }
+#
+# Validate before reloading: nginx -t && systemctl reload nginx
+
+upstream {{.DBName}}_app {
+    server 127.0.0.1:4000;
+    keepalive 64;                          # reuse upstream connections, no TCP handshake per request
+}
+
+server {
+    listen 80;
+    server_name example.com;
+    # TLS: let certbot add the 443 block, and keep it if this file is re-templated by your deploy.
+
+    client_max_body_size 4m;               # keep in line with BODY_LIMIT
+
+    # Compress here and leave ENABLE_COMPRESSION off in the app.
+    gzip on;
+    gzip_comp_level 1;
+    gzip_types application/json text/css application/javascript text/plain;
+
+    location / {
+        proxy_pass http://{{.DBName}}_app;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";    # required for upstream keepalive
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;   # trusted by the app only from loopback/private peers
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}

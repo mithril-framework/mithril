@@ -64,7 +64,7 @@ func RequireRole(svc *Service, repo *repositories.ACLRepository, roleName string
 		if IsSuperuserLocal(c) {
 			return c.Next()
 		}
-		ok, err := repo.UserIsSuperuser(c, uid)
+		ok, err := svc.IsSuperuserDB(c, c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -95,7 +95,7 @@ func RequireSuperuser(svc *Service) fiber.Handler {
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 		}
-		ok, err := svc.repo.UserIsSuperuser(c, uid)
+		ok, err := svc.IsSuperuserDB(c, c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
@@ -143,7 +143,7 @@ func RequireAdminAccess(svc *Service) fiber.Handler {
 		if su {
 			return c.Next()
 		}
-		ok, err := svc.repo.UserIsSuperuser(c, uid)
+		ok, err := svc.IsSuperuserDB(c, c, uid)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "acl_error", "message": err.Error()})
 		}
