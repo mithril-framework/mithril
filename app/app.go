@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -44,6 +45,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/static"
 	"github.com/gofiber/template/jet/v3"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/valyala/fasthttp/prefork"
 
 	"github.com/mithril-framework/mithril/acl"
 	"github.com/mithril-framework/mithril/admin"
@@ -507,7 +509,9 @@ func (a *App) Serve(ctx context.Context) error {
 			log.Println("warning: PREFORK runs one process per CPU; anything kept in memory (rate limits, caches, hubs) is per process")
 		}
 	}
-	if a.Config.HasDatabase() && !a.opts.noDB {
+	// The prefork master only supervises children and serves no requests, so it needs no pool.
+	master := a.Config.Prefork && !fiber.IsChild()
+	if a.Config.HasDatabase() && !a.opts.noDB && !master {
 		if err := a.connectWithRetry(ctx); err != nil {
 			return err
 		}
@@ -519,19 +523,82 @@ func (a *App) Serve(ctx context.Context) error {
 	if !fiber.IsChild() {
 		log.Printf("%s listening on %s (prefork=%v, pool max=%d)", a.Config.AppName, a.Config.Addr(), a.Config.Prefork, a.poolOptions().MaxConns)
 	}
+	if master {
+		a.stopChildrenOnCancel(ctx)
+	}
+	// Listen returns as soon as the listener closes, while Fiber drains open connections in a
+	// goroutine; returning then would exit the process and cut off in-flight requests.
+	drained := make(chan struct{})
+	var drainOnce sync.Once
+	a.Fiber.Hooks().OnPostShutdown(func(error) error {
+		drainOnce.Do(func() { close(drained) })
+		return nil
+	})
 	err := a.Fiber.Listen(a.Config.Addr(), fiber.ListenConfig{
 		DisableStartupMessage: true,
 		EnablePrefork:         a.Config.Prefork,
 		// SIGINT/SIGTERM cancel ctx (app.Main): stop accepting connections, let in-flight requests
 		// finish for up to 10 s, then return. Without this, orchestrators wait for their grace
 		// period and SIGKILL the process mid-request on every deploy.
-		GracefulContext: ctx,
-		ShutdownTimeout: 10 * time.Second,
+		GracefulContext:            ctx,
+		ShutdownTimeout:            shutdownTimeout,
+		PreforkShutdownGracePeriod: shutdownTimeout + time.Second,
 	})
-	if err == nil && ctx.Err() != nil && !fiber.IsChild() {
-		log.Println("shut down gracefully")
+	if ctx.Err() != nil {
+		if !master {
+			select {
+			case <-drained:
+			case <-time.After(shutdownTimeout + time.Second):
+			}
+		}
+		if master && errors.Is(err, prefork.ErrOverRecovery) {
+			err = nil // the master ends this way once the children it stopped have exited
+		}
+		if err == nil && !fiber.IsChild() {
+			log.Println("shut down gracefully")
+		}
 	}
 	return err
+}
+
+const shutdownTimeout = 10 * time.Second
+
+// stopChildrenOnCancel makes the prefork master pass shutdown on to its children. Fiber's master
+// does not watch the graceful context: on its own it keeps supervising until it is killed, so a
+// SIGTERM from Docker or Kubernetes (sent to the master only) would end in a SIGKILL after the
+// grace period. On cancel, every child gets SIGTERM and shuts down gracefully; the master
+// restarts children that exit, so any child spawned after that is stopped as well, until the
+// exits pass fasthttp's recover threshold and the master returns ErrOverRecovery after giving
+// the remaining children PreforkShutdownGracePeriod to finish.
+func (a *App) stopChildrenOnCancel(ctx context.Context) {
+	var (
+		mu       sync.Mutex
+		pids     = map[int]bool{}
+		stopping bool
+	)
+	term := func(pid int) {
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Signal(syscall.SIGTERM)
+		}
+	}
+	a.Fiber.Hooks().OnFork(func(pid int) error {
+		mu.Lock()
+		defer mu.Unlock()
+		pids[pid] = true
+		if stopping {
+			term(pid)
+		}
+		return nil
+	})
+	go func() {
+		<-ctx.Done()
+		mu.Lock()
+		defer mu.Unlock()
+		stopping = true
+		for pid := range pids {
+			term(pid)
+		}
+	}()
 }
 
 // poolOptions sizes the DB pool. With PREFORK every process has its own pool, so the default is

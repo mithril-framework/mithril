@@ -228,6 +228,59 @@ func TestServeStopsOnContextCancel(t *testing.T) {
 	}
 }
 
+// Serve must not return (and let the process exit) while a request is still being handled.
+func TestServeDrainsInFlightRequests(t *testing.T) {
+	a, err := New(WithEnvFile(""), WithoutDatabase(), WithConfig(config.Config{AppName: "t", Env: "test", JWTSecret: secret, Port: "48932"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	a.Fiber.Get("/slow", func(c fiber.Ctx) error {
+		close(started)
+		time.Sleep(700 * time.Millisecond)
+		return c.SendString("done")
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	served := make(chan error, 1)
+	go func() { served <- a.Serve(ctx) }()
+	time.Sleep(300 * time.Millisecond)
+
+	type result struct {
+		body string
+		err  error
+	}
+	got := make(chan result, 1)
+	go func() {
+		resp, err := http.Get("http://127.0.0.1:48932/slow")
+		if err != nil {
+			got <- result{err: err}
+			return
+		}
+		defer resp.Body.Close()
+		b, err := io.ReadAll(resp.Body)
+		got <- result{string(b), err}
+	}()
+	<-started
+	cancel()
+	select {
+	case err := <-served:
+		r := <-got
+		t.Fatalf("Serve returned (%v) before the in-flight request finished; request got %q, %v", err, r.body, r.err)
+	case r := <-got:
+		if r.err != nil || r.body != "done" {
+			t.Fatalf("in-flight request: body %q, err %v", r.body, r.err)
+		}
+	}
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("Serve returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Serve did not return after draining")
+	}
+}
+
 func TestClientIPBehindTrustedProxy(t *testing.T) {
 	cfg := config.Config{AppName: "t", Env: "test", JWTSecret: secret, TrustProxy: true, ProxyHeader: "X-Real-IP"}
 	a, err := New(WithEnvFile(""), WithoutDatabase(), WithConfig(cfg))

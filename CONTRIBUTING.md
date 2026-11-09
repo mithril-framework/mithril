@@ -38,6 +38,15 @@ Thank you for your interest in contributing to Mithril!
 4. Open a PR with a description of what changed and why.
 5. Link any related issues.
 
+## Releases
+
+Every push to `main` (a direct push or a merged PR) runs the tests and the CLI smoke test, then publishes a GitHub release with the `mithril` CLI for Linux, macOS and Windows (amd64 and arm64) and a `checksums.txt`. The version is chosen automatically:
+
+- If the tag for `Base` in `pkg/version/version.go` doesn't exist yet and `Base` is newer than every tag, that version is released.
+- Otherwise the next patch after the newest `vX.Y.Z` tag is released (`v1.3.0` → `v1.3.1`).
+
+So patch releases need nothing; for a minor or major release, bump `Base` in the same PR (for example to `1.4.0`). Re-running the workflow on a commit that is already tagged does nothing.
+
 ## Code Style
 
 - Follow standard Go conventions (`gofmt`, idiomatic naming).

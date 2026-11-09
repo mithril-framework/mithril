@@ -178,3 +178,13 @@ Found while benchmarking:
 - **S7 (partly):** DB-checked permission paths now deny deactivated or deleted users even when their token is still valid.
 
 Verified with unit and race tests, the security e2e suite (52/52), a generated project (77k req/s on `/hello`, p99 1.0 ms, profile mostly syscalls), and `nginx -t` on the generated nginx config.
+
+## Fix log, round 4: shutdown and releases
+
+Found while load-testing a stateless app with `PREFORK=true` inside Docker's Linux VM:
+
+- **Bug, fixed: in-flight requests were cut off on shutdown.** Fiber's `Listen` returns as soon as the listener closes and drains connections in a goroutine, so `Serve` returned, the process exited, and a request still being handled got no response (round 3's fix stopped the server but didn't wait for it). `Serve` now waits for the drain (up to 10 s). Test: `TestServeDrainsInFlightRequests` (fails without the fix).
+- **Bug, fixed: SIGTERM was ignored under prefork.** Fiber's prefork master doesn't watch the graceful context, and Docker/Kubernetes signal only the master, so it kept supervising until SIGKILL. The master now sends SIGTERM to every child (including ones it respawns), the children drain, and the master exits. It also no longer opens a DB pool it never uses. Verified in Linux: SIGTERM with a 2 s request in flight returns 200 and exits in 1.5 s with no processes left, with and without prefork.
+- **Measured:** stateless `GET /` / `GET /json` at 470k / 501k req/s with `PREFORK=true HIGH_THROUGHPUT=true` on 4 shared vCPUs (425k / 388k with defaults). The docs' performance page has the 1M req/s guide.
+
+Releases: every push to `main` (including merged PRs) now publishes a GitHub release with CLI binaries for linux/darwin/windows × amd64/arm64 and `checksums.txt`, after the tests and CLI smoke test pass. `version.Version` is set at build time (ldflags for binaries, module build info for `go install …@vX.Y.Z` and for apps that depend on a tagged version), falling back to `version.Base`.
